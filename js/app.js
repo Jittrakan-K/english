@@ -6,6 +6,14 @@
   var C = window.COURSE || [];
   var ABC = window.ALPHABET || [];
   var app = document.getElementById('app');
+  var MORE = window.MORE || {};
+
+  /* merge data-more.js: extra lessons, common-mistake items, dialogues */
+  C.forEach(function (st) {
+    ((MORE.lessons || {})[st.id] || []).forEach(function (l) { if (!st.lessons.some(function (x) { return x.id === l.id; })) st.lessons.push(l); });
+    st.dialogs = (MORE.dialogs || {})[st.id] || [];
+    st.lessons.forEach(function (l) { if (!l.fix && MORE.fix && MORE.fix[l.id]) l.fix = MORE.fix[l.id]; l.fix = l.fix || []; });
+  });
 
   /* ---------------- data index ---------------- */
   var LESSONS = [];
@@ -259,15 +267,15 @@
     } else if (cur) {
       h1 = 'วันนี้มาเรียน<br>' + esc(cur.title);
       lead = esc(cur.goal);
-      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + cur.id + '">เรียนบทนี้</a>' + (due ? '<a class="btn" href="#/review">ทวน ' + due + ' คำก่อน</a>' : '<a class="btn" href="#/speak">ฝึกพูด</a>');
+      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + cur.id + '">เรียนบทนี้</a>' + (due ? '<a class="btn" href="#/review">ทวน ' + due + ' คำก่อน</a>' : '') + (n ? '<a class="btn" href="#/mix">ฝึกรวมจุดที่ยังไม่แม่น</a>' : '<a class="btn" href="#/speak">ฝึกพูด</a>');
     } else if (!stagePassed(csi)) {
       h1 = 'พร้อมสอบด่าน<br>' + esc(C[csi].name);
       lead = 'ผ่านด่านนี้แล้วขั้นถัดไปจะเปิดทันที';
-      actions = '<a class="btn btn--primary btn--lg" href="#/check/' + C[csi].id + '">เริ่มด่านสอบ</a><a class="btn" href="#/review">ทวนคำก่อน</a>';
+      actions = '<a class="btn btn--primary btn--lg" href="#/check/' + C[csi].id + '">เริ่มด่านสอบ</a><a class="btn" href="#/mix">อุ่นเครื่องด้วยฝึกรวม</a>';
     } else {
       h1 = 'สวนเต็มแล้ว<br>พูดทุกวันให้คล่อง';
       lead = 'คุณเรียนครบทุกบท ฝึกพูดและทวนคำทุกวันเพื่อรักษาความคล่อง';
-      actions = '<a class="btn btn--primary btn--lg" href="#/speak">ฝึกพูด</a><a class="btn" href="#/review">ทวนคำ</a>';
+      actions = '<a class="btn btn--primary btn--lg" href="#/speak">ฝึกพูด</a><a class="btn" href="#/mix">ฝึกรวม</a><a class="btn" href="#/review">ทวนคำ</a>';
     }
     var p = clamp(xp / goal, 0, 1);
     var today =
@@ -286,7 +294,7 @@
       var state = passed ? 'passed' : (!open ? 'locked' : (si === csi ? 'now' : 'open'));
       return '<li class="stage" id="stage-' + st.id + '" data-state="' + state + '">' +
         '<div class="stage__head"><div><h3>ขั้น ' + (si + 1) + ' ' + esc(st.name) + '</h3><p class="stage__can">จบขั้นนี้แล้ว คุณจะ' + esc(st.cando) + '</p></div>' +
-        '<dl class="stage__meta"><div><dt>ระดับ</dt><dd>' + st.cefr + '</dd></div><div><dt>ผ่านแล้ว</dt><dd>' + dn + ' จาก 6</dd></div></dl></div>' +
+        '<dl class="stage__meta"><div><dt>ระดับ</dt><dd>' + st.cefr + '</dd></div><div><dt>ผ่านแล้ว</dt><dd>' + dn + ' จาก ' + st.lessons.length + '</dd></div></dl></div>' +
         '<div class="bed" tabindex="-1"><ol class="bed__row" data-tear="' + st.id + '">' +
           st.lessons.map(function (l) { return '<li>' + plantHTML(l) + '</li>'; }).join('') +
           '<li>' + signHTML(st) + '</li>' +
@@ -340,13 +348,15 @@
         '<section class="block" aria-labelledby="s-h"><h2 id="s-h">ประโยคตัวอย่าง</h2><ul class="sents">' +
           l.sents.map(function (s) { return '<li><button class="sent" type="button" data-act="say" data-text="' + esc(s[0]) + '"' + (TTS ? '' : ' disabled') + '>' + I.sound + '<span><span class="sent__en" lang="en">' + esc(s[0]) + '</span><span class="sent__th">' + esc(s[1]) + '</span></span></button></li>'; }).join('') +
         '</ul></section>' +
+        (l.fix && l.fix.length ? '<section class="block" aria-labelledby="f-h"><h2 id="f-h">ข้อผิดที่คนไทยพบบ่อย</h2><ul class="fixes">' +
+          l.fix.map(function (f) { return '<li><p class="fixes__bad"><span class="visually-hidden">ผิด: </span><s lang="en">' + esc(f[0]) + '</s></p><p class="fixes__good"><span class="visually-hidden">ถูก: </span><span lang="en">' + esc(f[1]) + '</span>' + (TTS ? ' ' + sayBtn(f[1], null, 'btn--sm') : '') + '</p><p class="fixes__why">' + esc(f[2]) + '</p></li>'; }).join('') + '</ul></section>' : '') +
         pairs +
         '<div class="lesson__foot">' + start + nextLink(l) + '</div>' +
       '</article></div>');
   }
   function nextLink(l) {
     var nx = LESSONS[l.n + 1];
-    if (l.li === 5) return '<a class="btn" href="#/check/' + l.stage.id + '">ไปด่านสอบท้ายขั้น</a>';
+    if (l.li === l.stage.lessons.length - 1) return '<a class="btn" href="#/check/' + l.stage.id + '">ไปด่านสอบท้ายขั้น</a>';
     return nx ? '<a class="btn" href="#/lesson/' + nx.id + '">ดูบทถัดไป</a>' : '';
   }
 
@@ -358,10 +368,10 @@
       '<div class="view container"><div class="view__head">' +
         '<p class="crumb"><a href="#/">เส้นทาง</a>&ensp;/&ensp;ขั้น ' + (st.si + 1) + ' ' + esc(st.name) + ' (' + st.cefr + ')</p>' +
         '<h1>ด่านสอบขั้น ' + (st.si + 1) + '</h1>' +
-        '<p>15 ข้อจากทุกบทในขั้นนี้ ได้ 75% ขึ้นไปถือว่าผ่าน' + (nx ? ' แล้วขั้น ' + (st.si + 2) + ' ' + esc(nx.name) + ' จะเปิดทันที' : '') + '</p>' +
+        '<p>' + buildCheck(st).length + ' ข้อจากทุกบทในขั้นนี้ ได้ 75% ขึ้นไปถือว่าผ่าน' + (nx ? ' แล้วขั้น ' + (st.si + 2) + ' ' + esc(nx.name) + ' จะเปิดทันที' : '') + '</p>' +
       '</div>' +
       (passed ? '<p class="notice">คุณผ่านด่านนี้แล้ว สอบซ้ำได้เพื่อทบทวน</p>' :
-        dn < 6 ? '<p class="notice">ยังเรียนขั้นนี้ไม่ครบ (' + dn + ' จาก 6 บท) ถ้าเคยเรียนมาแล้วสอบข้ามได้เลย ถ้าผ่าน ทุกบทในขั้นนี้และขั้นก่อนหน้าจะนับว่าผ่าน</p>' : '') +
+        dn < st.lessons.length ? '<p class="notice">ยังเรียนขั้นนี้ไม่ครบ (' + dn + ' จาก ' + st.lessons.length + ' บท) ถ้าเคยเรียนมาแล้วสอบข้ามได้เลย ถ้าผ่าน ทุกบทในขั้นนี้และขั้นก่อนหน้าจะนับว่าผ่าน</p>' : '') +
       '<div class="actions" style="margin-top: var(--space-xl)"><button class="btn btn--primary btn--lg" type="button" data-act="startcheck" data-id="' + st.id + '">เริ่มด่านสอบ</button><a class="btn" href="#/">กลับไปที่เส้นทาง</a></div>' +
       '</div>');
   }
@@ -400,41 +410,107 @@
   }
   function pairItem(p) { var target = p[Math.random() < 0.5 ? 0 : 1]; return { t: 'pair', q: 'ฟังให้ดี คุณได้ยินคำไหน', listen: target, opts: p.slice(), optEn: true, ans: target, en: target, th: 'คู่เสียง ' + p[0] + ' กับ ' + p[1] }; }
   function speakItem(s) { return { t: 'speak', q: 'พูดประโยคนี้ออกเสียง', en: s[0], th: s[1], ans: s[0] }; }
+  function reEsc(x) { return x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  /* fill the blank: hide a lesson word inside one of the lesson's sentences */
+  function clozeItems(l, n, poolWords) {
+    var words = l.words.filter(function (w) { return w[0].length >= 2 && !/\.\.\.|…|\//.test(w[0]); })
+      .sort(function (a, b) { return b[0].length - a[0].length; });
+    var out = [], used = {};
+    shuffle(l.sents).forEach(function (s) {
+      if (out.length >= n) return;
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i];
+        if (used[w[0]]) continue;
+        var re = new RegExp('(^|[^\\p{L}\'])(' + reEsc(w[0]) + ')(?=$|[^\\p{L}\'])', 'iu');
+        var m = s[0].match(re);
+        if (!m) continue;
+        used[w[0]] = 1;
+        var blanked = s[0].replace(re, '$1_____');
+        var opts = shuffle([w[0]].concat(distract(w[0], shuffle(l.words.map(function (x) { return x[0]; }).filter(function (x) { return x.length >= 2; })).concat(shuffle((poolWords || []).map(function (x) { return x[0]; }))), 3)));
+        out.push({ t: 'mcq', q: 'เลือกคำที่หายไปให้ประโยคสมบูรณ์', cloze: blanked, clozeTh: s[1], opts: opts, optEn: true, ans: w[0], en: s[0], th: s[1], k: l.id + '|' + w[0] });
+        return;
+      }
+    });
+    return out;
+  }
+  function fixItem(f) {
+    return { t: 'mcq', q: 'ประโยคไหนถูกต้องและเป็นธรรมชาติ', fix: true, opts: shuffle([f[0], f[1]]), optEn: true, ans: f[1], en: f[1], why: f[2] };
+  }
+  function matchItem(ws) { return { t: 'match', q: 'จับคู่คำศัพท์กับความหมาย', pairs: ws.slice(0, 5) }; }
+  function dictItem(s) { return { t: 'type', q: 'ฟังแล้วพิมพ์ประโยคที่ได้ยิน', listen: s[0], dict: true, ans: s[0], en: s[0], th: s[1] }; }
+  function shortSent(list) { return shuffle(list.filter(function (s) { var n = tokensOf(s[0]).length; return n >= 3 && n <= 8; }))[0]; }
+  function withKey(it, l, w) { if (l && w) it.k = l.id + '|' + w[0]; return it; }
 
   function buildLesson(l) {
-    var pool = stageWords(l.si), W = shuffle(l.words), words = [], sents = [];
-    W.slice(0, 4).forEach(function (w) { words.push(mcqMeaning(w, l.words, pool)); });
-    W.slice(4, 6).forEach(function (w) { words.push(mcqWord(w, l.words, pool)); });
-    W.slice(6, 8).forEach(function (w) { words.push(TTS ? mcqListen(w, l.words, pool) : mcqMeaning(w, l.words, pool)); });
-    var tw = W.slice(8).concat(W).find(typable); if (tw) words.push(typeWord(tw));
+    var pool = stageWords(l.si), W = shuffle(l.words), vocab = [], sents = [];
+    W.slice(0, 3).forEach(function (w) { vocab.push(withKey(mcqMeaning(w, l.words, pool), l, w)); });
+    W.slice(3, 4).forEach(function (w) { vocab.push(withKey(mcqWord(w, l.words, pool), l, w)); });
+    W.slice(4, 6).forEach(function (w) { vocab.push(withKey(TTS ? mcqListen(w, l.words, pool) : mcqMeaning(w, l.words, pool), l, w)); });
+    var tw = W.slice(6).concat(W).find(typable); if (tw) vocab.push(withKey(typeWord(tw), l, tw));
+    if (l.words.length >= 5) vocab.push(matchItem(shuffle(l.words)));
+    if (TTS && l.pairs) shuffle(l.pairs).slice(0, 2).forEach(function (p) { vocab.push(pairItem(p)); });
+    clozeItems(l, 2, pool).forEach(function (it) { sents.push(it); });
+    shuffle(l.fix || []).slice(0, 2).forEach(function (f) { sents.push(fixItem(f)); });
     var Ss = shuffle(l.sents.filter(tileable));
     Ss.slice(0, 2).forEach(function (s) { sents.push(tilesItem(s, l.sents.filter(function (o) { return o !== s; }), false)); });
-    if (TTS && Ss[2]) sents.push(tilesItem(Ss[2], l.sents.filter(function (o) { return o !== Ss[2]; }), true));
-    if (TTS && l.pairs) shuffle(l.pairs).slice(0, 3).forEach(function (p) { words.push(pairItem(p)); });
-    var out = shuffle(words).concat(shuffle(sents));
+    if (TTS) {
+      var ds = shortSent(l.sents);
+      if (ds && Math.random() < 0.5) sents.push(dictItem(ds));
+      else if (Ss[2]) sents.push(tilesItem(Ss[2], l.sents.filter(function (o) { return o !== Ss[2]; }), true));
+    }
+    var out = shuffle(vocab).concat(shuffle(sents));
     if (SRC) out.push(speakItem(Ss[3] || Ss[0] || l.sents[0]));
     return out;
   }
   function buildCheck(st) {
     var pool = stageWords(st.si), all = [], sentPool = st.lessons.reduce(function (a, l) { return a.concat(l.sents); }, []);
     var W = shuffle(pool);
-    W.slice(0, 5).forEach(function (w) { all.push(mcqMeaning(w, pool, pool)); });
-    W.slice(5, 8).forEach(function (w) { all.push(mcqWord(w, pool, pool)); });
-    if (TTS) W.slice(8, 10).forEach(function (w) { all.push(mcqListen(w, pool, pool)); });
-    else W.slice(8, 10).forEach(function (w) { all.push(mcqMeaning(w, pool, pool)); });
-    var tw = W.slice(10).find(typable); if (tw) all.push(typeWord(tw));
+    W.slice(0, 4).forEach(function (w) { all.push(mcqMeaning(w, pool, pool)); });
+    W.slice(4, 6).forEach(function (w) { all.push(mcqWord(w, pool, pool)); });
+    W.slice(6, 8).forEach(function (w) { all.push(TTS ? mcqListen(w, pool, pool) : mcqMeaning(w, pool, pool)); });
+    var tw = W.slice(8).find(typable); if (tw) all.push(typeWord(tw));
+    all.push(matchItem(W.slice(10, 15)));
+    shuffle(st.lessons).slice(0, 2).forEach(function (l) { clozeItems(l, 1, pool).forEach(function (it) { all.push(it); }); });
+    shuffle(st.lessons.reduce(function (a, l) { return a.concat(l.fix || []); }, [])).slice(0, 3).forEach(function (f) { all.push(fixItem(f)); });
     var Ss = shuffle(sentPool.filter(tileable));
     Ss.slice(0, 3).forEach(function (s) { all.push(tilesItem(s, Ss.slice(5, 9), false)); });
-    if (Ss[3]) all.push(TTS ? tilesItem(Ss[3], Ss.slice(5, 9), true) : tilesItem(Ss[3], Ss.slice(5, 9), false));
+    if (TTS) { var ds = shortSent(Ss.slice(3)); if (ds) all.push(dictItem(ds)); }
     return shuffle(all);
+  }
+  /* mixed practice: lessons already passed, weighted toward weak words and low scores */
+  function mixLessons() {
+    var done = LESSONS.filter(function (l) { return S.done[l.id]; });
+    return done.length ? done : LESSONS.filter(lessonOpen).slice(0, 2);
+  }
+  function buildMix() {
+    var ls = mixLessons();
+    var weak = [];
+    ls.forEach(function (l) { l.words.forEach(function (w) { var c = S.srs[l.id + '|' + w[0]]; weak.push({ w: w, l: l, wt: c ? (9 - c.b) + (c.d <= dayIndex() ? 4 : 0) : 6 }); }); });
+    weak.sort(function (a, b) { return b.wt - a.wt + (Math.random() - 0.5) * 3; });
+    var byScore = ls.slice().sort(function (a, b) { return ((S.done[a.id] || {}).best || 0) - ((S.done[b.id] || {}).best || 0) + (Math.random() - 0.5) * 30; });
+    var pool = ls.reduce(function (a, l) { return a.concat(l.words); }, []);
+    var vocab = [], sents = [];
+    weak.slice(0, 3).forEach(function (x) { vocab.push(withKey(mcqMeaning(x.w, x.l.words, pool), x.l, x.w)); });
+    weak.slice(3, 5).forEach(function (x) { vocab.push(withKey(mcqWord(x.w, x.l.words, pool), x.l, x.w)); });
+    weak.slice(5, 7).forEach(function (x) { vocab.push(withKey(TTS ? mcqListen(x.w, x.l.words, pool) : mcqMeaning(x.w, x.l.words, pool), x.l, x.w)); });
+    var tx = weak.slice(7).find(function (x) { return typable(x.w); }); if (tx) vocab.push(withKey(typeWord(tx.w), tx.l, tx.w));
+    vocab.push(matchItem(weak.slice(8, 13).map(function (x) { return x.w; })));
+    byScore.slice(0, 2).forEach(function (l) { clozeItems(l, 1, pool).forEach(function (it) { sents.push(it); }); });
+    shuffle(byScore.slice(0, 4).reduce(function (a, l) { return a.concat(l.fix || []); }, [])).slice(0, 3).forEach(function (f) { sents.push(fixItem(f)); });
+    var sp = shuffle(byScore.slice(0, 4).reduce(function (a, l) { return a.concat(l.sents); }, []).filter(tileable));
+    sp.slice(0, 2).forEach(function (s) { sents.push(tilesItem(s, sp.slice(4, 8), false)); });
+    if (TTS) { var ds = shortSent(sp.slice(2)); if (ds) sents.push(dictItem(ds)); }
+    var out = shuffle(vocab).concat(shuffle(sents));
+    if (SRC && sp[3]) out.push(speakItem(sp[3]));
+    return out;
   }
 
   /* ---------------- practice player ---------------- */
   var P = null;
   function startPlay(kind, obj) {
     hush();
-    var items = kind === 'lesson' ? buildLesson(obj) : buildCheck(obj);
-    P = { kind: kind, obj: obj, queue: items.slice(), total: items.length, finished: 0, right: 0, scored: 0, phase: 'answer', sel: null, line: [], tries: 0 };
+    var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : buildCheck(obj);
+    P = { kind: kind, obj: obj, queue: items.slice(), total: items.length, finished: 0, right: 0, scored: 0, phase: 'answer', sel: null, line: [], tries: 0, missed: [] };
     items.forEach(function (it) { it.first = true; });
     playRender();
   }
@@ -449,7 +525,15 @@
   }
   function taskHTML(it) {
     var h = '<div class="task"><p class="task__q" id="task-q">' + esc(it.q) + '</p>';
-    if (it.t === 'mcq' || it.t === 'pair') {
+    if (it.t === 'mcq' && it.cloze) {
+      h += '<div class="task__big"><h2 class="task__cloze" lang="en">' + esc(it.cloze).replace('_____', '<span class="blank" aria-label="ช่องว่าง">_____</span>') + '</h2></div><p class="task__hint">' + esc(it.clozeTh) + '</p>' + optHTML(it);
+    } else if (it.t === 'mcq' && it.fix) {
+      h += '<ul class="opts opts--stack">' + it.opts.map(function (o, i) { return '<li><button class="opt" type="button" data-act="opt" data-v="' + esc(o) + '"><kbd>' + (i + 1) + '</kbd><span lang="en">' + esc(o) + '</span></button></li>'; }).join('') + '</ul>';
+    } else if (it.t === 'match') {
+      var en = shuffle(it.pairs.map(function (w, i) { return i; })), th = shuffle(it.pairs.map(function (w, i) { return i; }));
+      h += '<div class="match"><ul class="match__col" aria-label="คำภาษาอังกฤษ">' + en.map(function (i) { return '<li><button class="opt" type="button" data-act="m" data-side="en" data-i="' + i + '" lang="en">' + esc(it.pairs[i][0]) + '</button></li>'; }).join('') + '</ul>' +
+        '<ul class="match__col" aria-label="ความหมาย">' + th.map(function (i) { return '<li><button class="opt" type="button" data-act="m" data-side="th" data-i="' + i + '">' + esc(it.pairs[i][1]) + '</button></li>'; }).join('') + '</ul></div>';
+    } else if (it.t === 'mcq' || it.t === 'pair') {
       if (it.big) h += '<div class="task__big"><h2 lang="en">' + esc(it.big) + '</h2>' + sayBtn(it.say) + '</div>';
       if (it.bigTh) h += '<div class="task__big"><h2 class="task__th">' + esc(it.bigTh) + '</h2></div>';
       if (it.listen) h += listenHTML(it.listen);
@@ -460,7 +544,7 @@
       h += '<div class="tiles"><div class="tiles__line" id="line" aria-label="ประโยคที่เรียง" aria-live="polite"></div><div class="tiles__bank" role="group" aria-label="คำให้เลือก">' +
         it.bank.map(function (t, i) { return '<button class="tile" type="button" data-act="tile" data-k="' + i + '" lang="en">' + esc(t) + '</button>'; }).join('') + '</div></div>';
     } else if (it.t === 'type') {
-      h += '<div class="task__big"><h2 class="task__th">' + esc(it.bigTh) + '</h2>' + sayBtn(it.hintSay, 'ฟังเป็นตัวช่วย') + '</div>' +
+      h += (it.dict ? listenHTML(it.listen) : '<div class="task__big"><h2 class="task__th">' + esc(it.bigTh) + '</h2>' + sayBtn(it.hintSay, 'ฟังเป็นตัวช่วย') + '</div>') +
         '<div class="field"><label for="answer">คำตอบภาษาอังกฤษ</label><input class="input input--big" id="answer" name="answer" type="text" lang="en" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>';
     } else if (it.t === 'speak') {
       h += '<div class="task__big"><h2 lang="en">' + esc(it.en) + '</h2>' + sayBtn(it.en) + '</div><p class="task__th">' + esc(it.th) + '</p>' +
@@ -472,7 +556,11 @@
     if (P.phase === 'feedback') {
       var good = P.lastRight;
       var head = good ? ['ถูกต้อง', 'ใช่เลย', 'เยี่ยม', 'แม่นมาก'][Math.floor(Math.random() * 4)] : 'ยังไม่ใช่';
-      var body = good
+      var body;
+      if (it.t === 'match') body = good ? '<p>จับคู่ครบ ' + it.pairs.length + ' คู่' + (P.mm.miss ? ' พลาด ' + P.mm.miss + ' ครั้ง' : ' ไม่พลาดเลย') + '</p>' : '<p>พลาด ' + P.mm.miss + ' ครั้ง คู่ที่ถูกคือ</p><p class="th">' + it.pairs.map(function (w) { return '<span lang="en">' + esc(w[0]) + '</span> = ' + esc(w[1]); }).join('&emsp;') + '</p>';
+      else if (it.fix) body = (good ? '<p lang="en">' + esc(it.ans) + '</p>' : '<p>ประโยคที่ถูกคือ <b lang="en">' + esc(it.ans) + '</b></p>') + '<p class="th">' + esc(it.why) + '</p>';
+      else if (it.dict && !good) body = '<p>ที่ถูกคือ <b lang="en">' + esc(it.ans) + '</b></p><p class="th">' + (P.dictMark ? '<span class="heard">' + P.dictMark + '</span>' : '') + '</p><p class="th">' + esc(it.th) + '</p>';
+      else body = good
         ? '<p lang="en">' + esc(it.en) + '</p>' + (it.th && it.t !== 'pair' ? '<p class="th">' + esc(it.th) + '</p>' : '')
         : (it.t === 'mcq' && !it.optEn
           ? '<p>คำตอบคือ <b>' + esc(it.ans) + '</b></p><p class="th"><span lang="en">' + esc(it.en) + '</span> แปลว่า ' + esc(it.th) + '</p>'
@@ -483,6 +571,7 @@
     }
     var left = '', right = '';
     if (it.t === 'mcq' || it.t === 'pair') left = '<p class="muted small">แตะคำตอบ หรือกดเลข 1 ถึง ' + it.opts.length + '</p>';
+    if (it.t === 'match') left = '<p class="muted small">แตะคำอังกฤษ แล้วแตะความหมายที่คู่กัน</p>';
     if (it.t === 'tiles' || it.t === 'type') { left = '<button class="link" type="button" data-act="giveup">ไม่รู้ ดูเฉลย</button>'; right = '<button class="btn btn--primary btn--lg" type="button" data-act="check" id="check"' + (it.t === 'tiles' ? ' disabled' : '') + '>ตรวจคำตอบ</button>'; }
     if (it.t === 'speak') left = '<button class="link" type="button" data-act="skip">พูดตอนนี้ไม่ได้ ข้ามข้อนี้</button>';
     return '<div class="feedback"><div class="container feedback__in"><div class="feedback__msg">' + left + '</div><div class="feedback__side">' + right + '</div></div></div>';
@@ -490,8 +579,8 @@
   function playRender() {
     var it = P.queue[0];
     if (!it) { finishPlay(); return; }
-    P.phase = 'answer'; P.sel = null; P.line = []; P.tries = 0;
-    var label = P.kind === 'lesson' ? P.obj.title : 'ด่านสอบขั้น ' + (P.obj.si + 1);
+    P.phase = 'answer'; P.sel = null; P.line = []; P.tries = 0; P.mm = { sel: null, done: 0, miss: 0 }; P.dictMark = '';
+    var label = P.kind === 'lesson' ? P.obj.title : P.kind === 'mix' ? 'ฝึกรวม' : 'ด่านสอบขั้น ' + (P.obj.si + 1);
     render(
       '<div class="player">' +
         '<div class="container player__bar"><button class="btn btn--icon btn--sm" type="button" data-act="quit" aria-label="ออกจากแบบฝึก">' + I.close + '</button>' +
@@ -510,6 +599,8 @@
     var it = P.queue[0];
     P.phase = 'feedback'; P.lastRight = right;
     if (it.first && scored !== false) { P.scored++; if (right) P.right++; }
+    if (!right && it.k && S.srs[it.k]) { S.srs[it.k].b = 0; S.srs[it.k].d = dayIndex(); save(); }
+    if (!right && it.first && it.en) P.missed.push(it);
     if (right && it.en && it.t !== 'mcq' && it.t !== 'pair') say(it.en);
     $$('.opt, .tile, #answer, .mic', $('#task')).forEach(function (b) { b.disabled = true; });
     updateBar();
@@ -533,7 +624,7 @@
       var nx = LESSONS[o.n + 1];
       var nextBtn = !passed
         ? '<button class="btn btn--primary btn--lg" type="button" data-act="start" data-id="' + o.id + '">ลองอีกรอบ</button>'
-        : (o.li === 5 ? '<a class="btn btn--primary btn--lg" href="#/check/' + o.stage.id + '">ไปด่านสอบท้ายขั้น</a>' : (nx ? '<a class="btn btn--primary btn--lg" href="#/lesson/' + nx.id + '">บทถัดไป</a>' : '<a class="btn btn--primary btn--lg" href="#/">กลับไปที่สวน</a>'));
+        : (o.li === o.stage.lessons.length - 1 ? '<a class="btn btn--primary btn--lg" href="#/check/' + o.stage.id + '">ไปด่านสอบท้ายขั้น</a>' : (nx ? '<a class="btn btn--primary btn--lg" href="#/lesson/' + nx.id + '">บทถัดไป</a>' : '<a class="btn btn--primary btn--lg" href="#/">กลับไปที่สวน</a>'));
       html =
         '<div class="result">' +
           '<div class="result__plant" data-tear="result-' + o.id + '">' + plantHTML(o, { force: passed ? 'done' : 'now', grow: grew, nolabel: true, static: true }) + '</div>' +
@@ -541,6 +632,18 @@
           '<p class="lead">' + (passed ? 'คำศัพท์จากบท' + esc(o.title) + 'เข้าคลังแล้ว ระบบจะชวนทวนเมื่อใกล้ลืม' : 'ต้องได้ 60% ขึ้นไปต้นไม้ถึงจะโต ข้อที่พลาดรอบนี้จะจำได้ดีขึ้นในรอบหน้า') + '</p>' +
           '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' XP</dd></div><div><dt>คำใหม่เข้าคลัง</dt><dd>' + added + ' คำ</dd></div></dl>' +
           '<div class="actions">' + nextBtn + (passed ? '<button class="btn" type="button" data-act="start" data-id="' + o.id + '">ฝึกบทนี้อีกครั้ง</button>' : '<a class="btn" href="#/lesson/' + o.id + '">อ่านเนื้อหาอีกรอบ</a>') + '<a class="btn" href="#/">ดูเส้นทาง</a></div>' +
+        '</div>';
+    } else if (P.kind === 'mix') {
+      xp = 12 + Math.round(score / 10);
+      save(); addXP(xp);
+      var miss = P.missed.slice(0, 6);
+      html =
+        '<div class="result">' +
+          '<h1>' + (score >= 80 ? 'แม่นขึ้นเรื่อย ๆ' : 'ฝึกรวมเสร็จแล้ว') + '</h1>' +
+          '<p class="lead">' + (miss.length ? 'คำที่พลาดถูกส่งกลับไปให้ทวนอีกครั้งวันนี้ ข้อที่ควรดูซ้ำอยู่ด้านล่าง' : 'ไม่พลาดเลยสักข้อ ลองฝึกอีกชุดหรือไปเรียนบทใหม่') + '</p>' +
+          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' XP</dd></div><div><dt>ข้อที่พลาด</dt><dd>' + P.missed.length + ' ข้อ</dd></div></dl>' +
+          (miss.length ? '<ul class="sents missed">' + miss.map(function (m) { return '<li><button class="sent" type="button" data-act="say" data-text="' + esc(m.en) + '"' + (TTS ? '' : ' disabled') + '>' + I.sound + '<span><span class="sent__en" lang="en">' + esc(m.en) + '</span><span class="sent__th">' + esc(m.why || m.th || '') + '</span></span></button></li>'; }).join('') + '</ul>' : '') +
+          '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="startmix">ฝึกอีกชุด</button><a class="btn" href="#/">ดูเส้นทาง</a></div>' +
         '</div>';
     } else {
       var ok = score >= 75;
@@ -559,6 +662,29 @@
     P = null;
     render('<div class="view container stage-area">' + html + '</div>', { focus: 'h1' });
     var h = $('h1', app); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+  }
+
+  /* matching pairs */
+  function matchPick(btn) {
+    if (!P || P.phase !== 'answer') return;
+    var it = P.queue[0], mm = P.mm, side = btn.getAttribute('data-side'), i = +btn.getAttribute('data-i');
+    if (btn.getAttribute('data-mark') === 'right') return;
+    if (!mm.sel || mm.sel.side === side) {
+      $$('.match [aria-pressed="true"]').forEach(function (b) { b.removeAttribute('aria-pressed'); });
+      btn.setAttribute('aria-pressed', 'true'); mm.sel = { side: side, i: i, el: btn };
+      if (side === 'en') say(it.pairs[i][0]);
+      return;
+    }
+    var other = mm.sel; mm.sel = null; other.el.removeAttribute('aria-pressed');
+    if (other.i === i) {
+      [btn, other.el].forEach(function (b) { b.setAttribute('data-mark', 'right'); b.disabled = true; });
+      mm.done++;
+      if (side === 'th') say(it.pairs[i][0]);
+      if (mm.done === it.pairs.length) settle(mm.miss <= 1);
+    } else {
+      mm.miss++;
+      [btn, other.el].forEach(function (b) { b.setAttribute('data-mark', 'wrong'); setTimeout(function () { if (b.getAttribute('data-mark') === 'wrong') b.removeAttribute('data-mark'); }, 650); });
+    }
   }
 
   /* answers */
@@ -586,6 +712,7 @@
     if (it.t === 'tiles') given = P.line.map(function (i) { return it.bank[i]; }).join(' ');
     else if (it.t === 'type') { var inp = $('#answer'); given = inp ? inp.value : ''; if (!given.trim()) { inp.focus(); return; } }
     var right = norm(given) === norm(it.ans);
+    if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
     if (!right && it.t === 'type') right = norm(given).replace(/'/g, '') === norm(it.ans).replace(/'/g, '');
     settle(right);
   }
@@ -618,7 +745,7 @@
     var due = dueCards();
     if (!due.length && !R) {
       var t = dayIndex(), tomorrow = all.filter(function (k) { return S.srs[k].d === t + 1; }).length;
-      render('<div class="view container"><div class="view__head"><h1>ทวนคำศัพท์</h1></div><div class="empty sheet"><h2>วันนี้ทวนครบแล้ว</h2><p>คำในคลัง ' + all.length + ' คำ พรุ่งนี้มีคิวทวน ' + tomorrow + ' คำ ระหว่างนี้ลองฝึกพูดประโยคจากบทที่เรียนแล้ว</p><div class="actions"><a class="btn btn--primary" href="#/speak">ฝึกพูด</a><button class="btn" type="button" data-act="cram">ทวนทั้งหมดอีกรอบ</button></div></div></div>');
+      render('<div class="view container"><div class="view__head"><h1>ทวนคำศัพท์</h1></div><div class="empty sheet"><h2>วันนี้ทวนครบแล้ว</h2><p>คำในคลัง ' + all.length + ' คำ พรุ่งนี้มีคิวทวน ' + tomorrow + ' คำ ระหว่างนี้ลองฝึกพูดประโยคจากบทที่เรียนแล้ว</p><div class="actions"><a class="btn btn--primary" href="#/mix">ฝึกรวมจุดที่ยังไม่แม่น</a><a class="btn" href="#/speak">ฝึกพูด</a><button class="btn" type="button" data-act="cram">ทวนทั้งหมดอีกรอบ</button></div></div></div>');
       return;
     }
     if (!R) R = { cards: shuffle(due).slice(0, 30), i: 0, shown: false, n: 0 };
@@ -668,17 +795,66 @@
   }
 
   /* ---------------- speaking gym ---------------- */
-  var SP = { mode: 'shadow', si: null, i: 0, hideTh: false, hint: false, mediaUrl: null };
+  var SP = { mode: 'shadow', si: null, i: 0, hideTh: false, hint: false, mediaUrl: null, step: -1, swap: false, hard: false, choices: null, miss: 0, note: '' };
+  /* roleplay helpers */
+  function roleMine(line) { return SP.swap ? line[0] !== 'you' : line[0] === 'you'; }
+  function roleName(line) { return roleMine(line) ? 'คุณ' : (line[0] === 'you' ? 'นก' : line[0]); }
+  function roleAdvance(d) {
+    var spoke = false;
+    while (SP.step < d.lines.length && !roleMine(d.lines[SP.step])) { say(d.lines[SP.step][1], false, spoke); spoke = true; SP.step++; }
+    SP.choices = null;
+    if (SP.step >= d.lines.length) { addXP(SP.hard ? 10 : 5); }
+  }
+  function roleChoices(d) {
+    if (SP.choices) return SP.choices;
+    var target = d.lines[SP.step][1];
+    var said = d.lines.slice(0, SP.step).map(function (ln) { return ln[1]; });
+    var others = C[SP.si].dialogs.reduce(function (a, x) { return a.concat(x.lines.filter(function (ln) { return roleMine(ln) && said.indexOf(ln[1]) === -1; }).map(function (ln) { return ln[1]; })); }, []);
+    SP.choices = shuffle([target].concat(distract(target, shuffle(others), 2)));
+    return SP.choices;
+  }
+  function roleCard() {
+    var ds = C[SP.si].dialogs, d = ds[SP.i];
+    if (!d) return '<div class="empty sheet"><h2>ขั้นนี้ยังไม่มีบทสนทนา</h2></div>';
+    if (SP.step < 0) { SP.step = 0; SP.miss = 0; SP.note = ''; roleAdvance(d); }
+    var shown = d.lines.slice(0, SP.step).map(function (ln) {
+      return '<li class="bubble"' + (roleMine(ln) ? ' data-me' : '') + '><span class="bubble__who">' + esc(roleName(ln)) + '</span><p class="bubble__en" lang="en">' + esc(ln[1]) + '</p><p class="bubble__th">' + esc(ln[2]) + '</p>' + (TTS ? sayBtn(ln[1], null, 'btn--sm') : '') + '</li>';
+    }).join('');
+    var turn = '';
+    if (SP.step < d.lines.length) {
+      var ln = d.lines[SP.step];
+      turn = '<div class="turn"><p class="turn__q">ตาคุณพูดว่า <b>“' + esc(ln[2]) + '”</b></p>' +
+        (SP.hard && SRC
+          ? '<div class="speak__row"><button class="mic" type="button" data-act="rolemic">' + I.mic + '<span>กดแล้วพูด</span></button><button class="link" type="button" data-act="rolereveal">ดูเฉลย</button></div><p class="heard" id="heard" aria-live="polite">' + SP.note + '</p>'
+          : '<ul class="opts opts--stack">' + roleChoices(d).map(function (c, i) { return '<li><button class="opt" type="button" data-act="rolepick" data-v="' + esc(c) + '"><kbd>' + (i + 1) + '</kbd><span lang="en">' + esc(c) + '</span></button></li>'; }).join('') + '</ul>' + (SP.note ? '<p class="heard" aria-live="polite">' + SP.note + '</p>' : '')) +
+        '</div>';
+    } else {
+      turn = '<div class="turn"><p class="turn__q"><b>จบบทสนทนา</b> ' + (SP.miss ? 'พลาด ' + SP.miss + ' ครั้ง' : 'ไม่พลาดเลย') + ' ได้ ' + (SP.hard ? 10 : 5) + ' XP</p>' +
+        '<div class="speak__row"><button class="btn btn--primary" type="button" data-act="roleagain">เล่นอีกครั้ง</button><button class="btn" type="button" data-act="roleswap">สลับไปเล่นอีกบท</button>' + (SRC && !SP.hard ? '<button class="btn" type="button" data-act="rolehard">ลองแบบพูดเอง</button>' : '') + '</div></div>';
+    }
+    return '<div class="speak__card sheet"><p class="muted small">' + esc(d.th) + (SP.swap ? ' (คุณเล่นอีกบท)' : '') + '</p><h2>' + esc(d.title) + '</h2>' +
+      '<div class="seg" role="group" aria-label="ระดับความยาก"><button type="button" data-act="rolemode" data-h="0" aria-pressed="' + !SP.hard + '">เลือกประโยค</button><button type="button" data-act="rolemode" data-h="1" aria-pressed="' + SP.hard + '"' + (SRC ? '' : ' disabled title="เบราว์เซอร์นี้ตรวจเสียงพูดไม่ได้"') + '>พูดเองไม่มีตัวเลือก</button></div>' +
+      '<ol class="chat" aria-live="polite">' + shown + '</ol>' + turn + '</div>';
+  }
+  function roleAccept(d) {
+    var ln = d.lines[SP.step];
+    say(ln[1]); SP.step++; SP.note = '';
+    var wait = TTS ? Math.min(4000, 600 + ln[1].length * 55) : 0;
+    viewSpeak();
+    setTimeout(function () { if (document.body.dataset.view !== 'speak' || SP.mode !== 'role') return; roleAdvance(d); viewSpeak(); var f = $('.turn .opt, .turn .mic, .turn .btn'); if (f) f.focus({ preventScroll: true }); }, wait);
+  }
   function speakSentences(si) { return C[si].lessons.reduce(function (a, l) { return a.concat(l.sents.map(function (s) { return { s: s, l: l }; })); }, []); }
   function viewSpeak() {
     if (SP.si === null || !stageOpen(SP.si)) SP.si = Math.min(currentStageIndex(), C.length - 1);
     if (!stageOpen(SP.si)) SP.si = 0;
-    var list = SP.mode === 'shadow' ? speakSentences(SP.si) : C[SP.si].talk;
+    var list = SP.mode === 'shadow' ? speakSentences(SP.si) : SP.mode === 'role' ? C[SP.si].dialogs : C[SP.si].talk;
     SP.i = clamp(SP.i, 0, list.length - 1);
     var pills = C.map(function (st, si) { var o = stageOpen(si); return '<button type="button" data-act="spstage" data-si="' + si + '" aria-pressed="' + (si === SP.si) + '"' + (o ? '' : ' disabled title="ยังล็อกอยู่"') + '>' + st.cefr + '</button>'; }).join('');
     var support = SRC ? '' : (window.MediaRecorder && navigator.mediaDevices ? '<p class="notice">เบราว์เซอร์นี้ตรวจเสียงพูดไม่ได้ ปุ่มไมค์จะอัดเสียงแทน แล้วให้คุณฟังเทียบกับเสียงต้นฉบับ (ถ้าอยากให้ระบบตรวจ ใช้ Chrome หรือ Edge)</p>' : '<p class="notice">เบราว์เซอร์นี้ใช้ไมค์ไม่ได้ ฝึกด้วยการฟังแล้วพูดตามออกเสียงดัง ๆ ก็ได้ผลเช่นกัน</p>');
     var card;
-    if (SP.mode === 'shadow') {
+    if (SP.mode === 'role') {
+      card = roleCard();
+    } else if (SP.mode === 'shadow') {
       var it = list[SP.i];
       card = '<div class="speak__card sheet"><p class="muted small">บท ' + esc(it.l.title) + '</p><h2 lang="en">' + esc(it.s[0]) + '</h2>' +
         (SP.hideTh ? '' : '<p class="speak__th">' + esc(it.s[1]) + '</p>') +
@@ -696,7 +872,7 @@
     }
     render('<div class="view container speak">' +
       '<div class="view__head" style="margin:0"><h1>ห้องฝึกพูด</h1><p>พูดออกเสียงจริงทุกวันคือทางลัดสู่ความคล่อง ฟัง พูดตาม แล้วดูว่าระบบได้ยินตรงแค่ไหน</p></div>' +
-      '<div class="speak__controls"><div class="seg" role="group" aria-label="โหมด"><button type="button" data-act="spmode" data-m="shadow" aria-pressed="' + (SP.mode === 'shadow') + '">พูดตามประโยค</button><button type="button" data-act="spmode" data-m="talk" aria-pressed="' + (SP.mode === 'talk') + '">ตอบคำถาม</button></div>' +
+      '<div class="speak__controls"><div class="seg" role="group" aria-label="โหมด"><button type="button" data-act="spmode" data-m="shadow" aria-pressed="' + (SP.mode === 'shadow') + '">พูดตามประโยค</button><button type="button" data-act="spmode" data-m="talk" aria-pressed="' + (SP.mode === 'talk') + '">ตอบคำถาม</button><button type="button" data-act="spmode" data-m="role" aria-pressed="' + (SP.mode === 'role') + '">บทสนทนา</button></div>' +
       '<div class="seg" role="group" aria-label="เลือกระดับ">' + pills + '</div></div>' + support + card +
       '<div class="speak__nav"><button class="btn" type="button" data-act="spprev"' + (SP.i === 0 ? ' disabled' : '') + '>ก่อนหน้า</button>' +
       '<span class="muted num">' + (SP.i + 1) + ' / ' + list.length + '</span>' +
@@ -795,7 +971,7 @@
     var stageRows = C.map(function (st, si) {
       var ds = st.lessons.filter(function (l) { return S.done[l.id]; });
       var avg = ds.length ? Math.round(ds.reduce(function (a, l) { return a + S.done[l.id].best; }, 0) / ds.length) : null;
-      return '<tr><td>ขั้น ' + (si + 1) + ' ' + esc(st.name) + '</td><td class="nw">' + st.cefr + '</td><td class="num">' + ds.length + ' จาก 6</td><td class="num">' + (avg === null ? 'ยังไม่มี' : avg + '%') + '</td><td>' + (stagePassed(si) ? 'ผ่านแล้ว' : stageOpen(si) ? 'เปิดอยู่' : 'ยังล็อก') + '</td></tr>';
+      return '<tr><td>ขั้น ' + (si + 1) + ' ' + esc(st.name) + '</td><td class="nw">' + st.cefr + '</td><td class="num">' + ds.length + ' จาก ' + st.lessons.length + '</td><td class="num">' + (avg === null ? 'ยังไม่มี' : avg + '%') + '</td><td>' + (stagePassed(si) ? 'ผ่านแล้ว' : stageOpen(si) ? 'เปิดอยู่' : 'ยังล็อก') + '</td></tr>';
     }).join('');
     render('<div class="view container">' +
       '<div class="view__head"><h1>สถิติของคุณ</h1><p>ทุกตัวเลขนับจากการเรียนในเบราว์เซอร์เครื่องนี้</p></div>' +
@@ -842,6 +1018,7 @@
     if (v === 'check' && stageById[a]) { viewCheck(stageById[a]); document.title = 'ด่านสอบขั้น ' + (stageById[a].si + 1) + ' | สวนภาษา'; return; }
     var titles = { review: 'ทวนคำศัพท์', speak: 'ห้องฝึกพูด', words: 'คลังคำ', progress: 'สถิติ' };
     document.title = (titles[v] ? titles[v] + ' | ' : '') + 'สวนภาษา: ภาษาอังกฤษจากศูนย์ถึงพูดคล่อง';
+    if (v === 'mix') { document.title = 'ฝึกรวม | สวนภาษา'; setNav('home'); startPlay('mix', null); return; }
     if (v === 'review') return viewReview();
     if (v === 'speak') return viewSpeak();
     if (v === 'words') return viewWords();
@@ -861,7 +1038,9 @@
       case 'sayall': { var l = byId[el.getAttribute('data-id')]; hush(); l.sents.forEach(function (s) { say(s[0], false, true); }); break; }
       case 'start': startPlay('lesson', byId[el.getAttribute('data-id')]); break;
       case 'startcheck': startPlay('check', stageById[el.getAttribute('data-id')]); break;
-      case 'quit': route(); break;
+      case 'quit': if (/^#\/mix/.test(location.hash)) location.hash = '#/'; else route(); break;
+      case 'm': matchPick(el); break;
+      case 'startmix': startPlay('mix', null); break;
       case 'opt': chooseOpt(el); break;
       case 'tile': tileMove(el, true); break;
       case 'untile': tileMove(el, false); break;
@@ -873,12 +1052,36 @@
       case 'reveal': if (R) { R.shown = true; reviewRender(); } break;
       case 'rate': if (R && R.shown) rateCard(+el.getAttribute('data-r')); break;
       case 'cram': { var all = Object.keys(S.srs).filter(function (k) { return CARD[k]; }); R = { cards: shuffle(all).slice(0, 30), i: 0, shown: false, n: 0 }; reviewRender(); break; }
-      case 'spmode': SP.mode = el.getAttribute('data-m'); SP.i = 0; SP.hint = false; viewSpeak(); break;
-      case 'spstage': SP.si = +el.getAttribute('data-si'); SP.i = 0; SP.hint = false; viewSpeak(); break;
-      case 'spprev': SP.i--; SP.hint = false; viewSpeak(); break;
-      case 'spnext': SP.i++; SP.hint = false; viewSpeak(); break;
+      case 'spmode': SP.mode = el.getAttribute('data-m'); SP.i = 0; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); break;
+      case 'spstage': SP.si = +el.getAttribute('data-si'); SP.i = 0; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); break;
+      case 'spprev': SP.i--; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); break;
+      case 'spnext': SP.i++; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); break;
       case 'sphint': SP.hint = !SP.hint; viewSpeak(); break;
       case 'spmic': spMic(el); break;
+      case 'rolepick': {
+        var rd = C[SP.si].dialogs[SP.i], tgt = rd.lines[SP.step][1];
+        if (el.getAttribute('data-v') === tgt) { el.setAttribute('data-mark', 'right'); roleAccept(rd); }
+        else { SP.miss++; el.setAttribute('data-mark', 'wrong'); el.disabled = true; SP.note = '<span class="miss">ยังไม่ใช่ ลองดูความหมายภาษาไทยอีกครั้ง</span>'; var nn = $('.turn .heard'); if (nn) nn.innerHTML = SP.note; else el.closest('.turn').insertAdjacentHTML('beforeend', '<p class="heard" aria-live="polite">' + SP.note + '</p>'); }
+        break;
+      }
+      case 'rolemic': {
+        if (rec) { stopListening(); break; }
+        var md = C[SP.si].dialogs[SP.i], mt = md.lines[SP.step][1], out = $('#heard');
+        el.setAttribute('data-on', ''); el.querySelector('span').textContent = 'กำลังฟัง แตะเพื่อหยุด';
+        listen(function (t) { out.textContent = t; }, function (res) {
+          el.removeAttribute('data-on'); el.querySelector('span').textContent = 'กดแล้วพูดอีกครั้ง';
+          if (res.error) { out.innerHTML = '<span class="miss">' + esc(micError(res.error)) + '</span>'; return; }
+          var r = compare(mt, heardCandidates(res.alts)), pct = Math.round(r.score * 100);
+          if (r.score >= 0.6) { roleAccept(md); }
+          else { SP.miss++; out.innerHTML = markWords(mt, r.ok) + '<br><span class="score">ตรง ' + pct + '%</span> <span class="muted small">ต้องตรง 60% ขึ้นไป ลองอีกครั้ง หรือกดดูเฉลย</span>'; }
+        });
+        break;
+      }
+      case 'rolereveal': { SP.miss++; var rv = C[SP.si].dialogs[SP.i]; roleAccept(rv); break; }
+      case 'roleagain': SP.step = -1; viewSpeak(); break;
+      case 'roleswap': SP.swap = !SP.swap; SP.step = -1; viewSpeak(); break;
+      case 'rolehard': SP.hard = true; SP.step = -1; viewSpeak(); break;
+      case 'rolemode': SP.hard = el.getAttribute('data-h') === '1'; SP.choices = null; SP.note = ''; viewSpeak(); break;
       case 'wst': WV.st = el.getAttribute('data-st'); $$('[data-act="wst"]').forEach(function (b) { b.setAttribute('aria-pressed', b === el); }); wordsList(); break;
       case 'export': {
         var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
