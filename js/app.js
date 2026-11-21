@@ -268,41 +268,40 @@
   function viewHome() {
     var cur = currentLesson(), n = totalDone(), csi = currentStageIndex();
     var goal = S.settings.goal, xp = xpToday(), due = dueCards().length;
-    var h1, lead, actions;
+    var h1, lead_, actions;
     var fresh = n === 0 && !Object.keys(S.passed).length;
     if (fresh) {
       h1 = 'เริ่มจากศูนย์<br>วันละบทก็พูดได้';
-      lead = 'บทแรกใช้เวลาราวสิบนาที ฟังเสียงจริงแล้วพูดตามได้ทันที';
+      lead_ = 'บทแรกใช้เวลาราวสิบนาที ฟังเสียงจริงแล้วพูดตามได้ทันที';
       actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + LESSONS[0].id + '">เริ่มบทแรก</a><a class="btn btn--line" href="#/check/s0">เคยเรียนแล้ว สอบข้ามขั้น</a>';
     } else if (cur) {
       h1 = 'วันนี้มาเรียน<br>' + esc(cur.title);
-      lead = esc(cur.goal);
+      lead_ = esc(cur.goal);
       actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + cur.id + '">เรียนบทนี้</a>' + (due ? '<a class="btn btn--line" href="#/review">ทวน ' + due + ' คำก่อน</a>' : (n ? '<a class="btn btn--line" href="#/mix">ฝึกรวมจุดที่ยังไม่แม่น</a>' : ''));
     } else if (!stagePassed(csi)) {
       h1 = 'พร้อมสอบด่าน<br>' + esc(C[csi].name);
-      lead = 'ผ่านด่านนี้แล้วขั้นถัดไปจะเปิดทันที';
+      lead_ = 'ผ่านด่านนี้แล้วขั้นถัดไปจะเปิดทันที';
       actions = '<a class="btn btn--primary btn--lg" href="#/check/' + C[csi].id + '">เริ่มด่านสอบ</a><a class="btn btn--line" href="#/mix">อุ่นเครื่องด้วยฝึกรวม</a>';
     } else {
       h1 = 'ครบทุกบทแล้ว<br>พูดทุกวันให้คล่อง';
-      lead = 'ฝึกพูดและทวนคำทุกวันเพื่อรักษาความคล่อง';
+      lead_ = 'ฝึกพูดและทวนคำทุกวันเพื่อรักษาความคล่อง';
       actions = '<a class="btn btn--primary btn--lg" href="#/speak">ฝึกพูด</a><a class="btn btn--line" href="#/mix">ฝึกรวม</a>';
     }
     var sk = streak();
-    var big = fresh ? { n: LESSONS.length, t: 'บท จากศูนย์ถึงพูดคล่อง' } : sk > 1 ? { n: sk, t: 'วันที่เรียนต่อเนื่อง' } : { n: n, t: 'บทที่ผ่านแล้ว จาก ' + LESSONS.length + ' บท' };
     var p = clamp(xp / goal, 0, 1);
+    var lead = fresh ? { n: LESSONS.length, t: 'บท จากศูนย์ถึงพูดคล่อง' } : sk > 1 ? { n: sk, t: 'วันที่เรียนต่อเนื่อง' } : { n: n, t: 'บทที่ผ่านแล้ว จาก ' + LESSONS.length + ' บท' };
     var cover =
-      '<section class="cover" aria-labelledby="today-h">' +
-        '<div class="container cover__in">' +
-          '<div class="cover__text"><h1 id="today-h">' + h1 + '</h1><p class="lead">' + lead + '</p><div class="actions">' + actions + '</div></div>' +
-          '<p class="cover__big" aria-label="' + big.n + ' ' + big.t + '"><b class="num">' + fmt(big.n) + '</b><span>' + big.t + '</span></p>' +
+      '<section class="hero" aria-labelledby="today-h">' +
+        '<div class="container hero__in">' +
+          '<div class="hero__text"><h1 id="today-h">' + h1 + '</h1><p class="lead">' + lead_ + '</p><div class="actions">' + actions + '</div></div>' +
+          '<div class="bento" aria-label="ตัวเลขของวันนี้">' +
+            '<p class="tile tile--lead"><b class="num">' + fmt(lead.n) + '</b><span>' + lead.t + '</span></p>' +
+            '<div class="tile tile--goal"><p class="tile__k">แต้มวันนี้</p><p class="tile__v num">' + fmt(xp) + '<small> / ' + goal + '</small></p>' +
+              '<div class="meter__track" role="progressbar" aria-label="แต้มวันนี้" aria-valuemin="0" aria-valuemax="' + goal + '" aria-valuenow="' + Math.min(xp, goal) + '"><div class="meter__fill" style="--p:' + p + '"></div></div></div>' +
+            (due ? '<a class="tile tile--due" href="#/review"><span class="tile__k">รอทวน</span><span class="tile__v num">' + due + '<small> คำ</small></span></a>' : '<p class="tile tile--due"><span class="tile__k">รอทวน</span><span class="tile__v num">0<small> คำ</small></span></p>') +
+            '<p class="tile tile--level"><span class="tile__k">ระดับ</span><span class="tile__v">' + level() + '</span></p>' +
+          '</div>' +
         '</div>' +
-        '<div class="floor floor--teal"><div class="container floor__in">' +
-          '<div class="meter"><p class="meter__top"><span>แต้มวันนี้</span><b class="num">' + fmt(xp) + ' / ' + goal + '</b></p>' +
-          '<div class="meter__track" role="progressbar" aria-label="แต้มวันนี้" aria-valuemin="0" aria-valuemax="' + goal + '" aria-valuenow="' + Math.min(xp, goal) + '"><div class="meter__fill" style="--p:' + p + '"></div></div></div>' +
-          '<p class="floor__fact"><span>รอทวน</span>' + (due ? '<a href="#/review"><b class="num">' + due + ' คำ</b></a>' : '<b class="num">0 คำ</b>') + '</p>' +
-          '<p class="floor__fact"><span>' + (big.t.indexOf('บทที่ผ่าน') === 0 ? 'ต่อเนื่อง' : 'บทที่ผ่าน') + '</span><b class="num">' + (big.t.indexOf('บทที่ผ่าน') === 0 ? sk + ' วัน' : n + ' / ' + LESSONS.length) + '</b></p>' +
-          '<p class="floor__fact"><span>ระดับ</span><b>' + (level() === 'เริ่มต้น' ? 'เริ่มต้น' : level()) + '</b></p>' +
-        '</div></div>' +
       '</section>';
 
     var stages = C.map(function (st, si) {
@@ -311,7 +310,7 @@
       var curIdx = st.lessons.findIndex(function (l) { return !S.done[l.id]; });
       var fill = passed ? 1 : (curIdx < 0 ? 1 : curIdx / total);
       return '<li class="slide" id="stage-' + st.id + '" data-tone="' + (si % 7) + '" data-state="' + state + '">' +
-        '<div class="container slide__in">' +
+        '<div class="slide__in">' +
           '<div class="slide__head"><h3>ขั้น ' + (si + 1) + ' ' + esc(st.name) + '</h3>' +
             '<p class="slide__can">จบขั้นนี้แล้ว คุณจะ' + esc(st.cando) + '</p>' +
             '<p class="slide__meta"><span>ระดับสากล ' + st.cefr + '</span><span>ผ่าน ' + dn + ' จาก ' + total + ' บท</span>' + (state === 'locked' ? '<span>' + I.lock + 'ยังล็อก</span>' : '') + '</p></div>' +
@@ -326,7 +325,7 @@
       '<section class="road" id="road" aria-labelledby="road-h">' +
         '<div class="container road__head"><h2 id="road-h">เส้นทางของคุณ</h2><p>7 ขั้นจากไม่รู้อะไรเลยจนพูดได้คล่อง ขั้นละ 8 บทกับด่านสอบหนึ่งด่าน เคยเรียนมาแล้วก็กดด่านสอบเพื่อข้ามขั้นได้</p></div>' +
         (storageOk ? '' : '<p class="container notice">เบราว์เซอร์นี้ไม่ยอมให้บันทึกความคืบหน้า (เช่นโหมดไม่ระบุตัวตน) ปิดหน้าแล้วความคืบหน้าจะหายไป</p>') +
-        '<ol class="slides">' + stages + '</ol>' +
+        '<ol class="container slides">' + stages + '</ol>' +
       '</section>');
   }
 
