@@ -39,27 +39,16 @@
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
-  /* seeded random + torn paper edge */
-  function rng(seed) { var t = seed >>> 0; return function () { t += 0x6D2B79F5; var r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
-  function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-  function tear(seed) {
-    var r = rng(seed), pts = [], steps = 64, y = 4;
-    for (var i = 0; i <= steps; i++) {
-      y = clamp(y + (r() - 0.5) * 4.2, 0.5, 9);
-      var jag = r() < 0.18 ? (r() * 3) : 0;
-      pts.push((i / steps * 100).toFixed(2) + '% ' + (y + jag).toFixed(1) + 'px');
-    }
-    return 'polygon(' + pts.join(', ') + ', 100% 100%, 0% 100%)';
-  }
-  function applyTears(root) { $$('[data-tear]', root).forEach(function (el) { el.style.setProperty('--tear', tear(hash(el.getAttribute('data-tear') || 'x'))); }); }
-
   /* ---------------- icons (one hand-made set) ---------------- */
   var SV = ' viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
   var I = {
     sound: '<svg' + SV + '><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
     mic: '<svg' + SV + '><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>',
     stop: '<svg' + SV + '><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
-    close: '<svg' + SV + '><path d="M6 6l12 12M18 6 6 18"/></svg>'
+    close: '<svg' + SV + '><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    check: '<svg' + SV + ' stroke-width="3"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    flag: '<svg' + SV + '><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>',
+    lock: '<svg' + SV + '><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
   };
 
   /* ---------------- state ---------------- */
@@ -233,7 +222,7 @@
     var st = $('[data-status]');
     if (st) {
       var n = streak();
-      st.innerHTML = 'ต่อเนื่อง <b class="num">' + n + '</b> วัน<span class="hide-s">&ensp; วันนี้ <b class="num">' + fmt(xpToday()) + '</b>/' + S.settings.goal + ' XP</span>';
+      st.innerHTML = 'ต่อเนื่อง <b class="num">' + n + '</b> วัน<span class="hide-s">&ensp; วันนี้ <b class="num">' + fmt(xpToday()) + '</b>/' + S.settings.goal + ' แต้ม</span>';
     }
     var due = dueCards().length, badge = $('[data-due]');
     if (badge) { badge.hidden = !due; badge.textContent = due > 99 ? '99+' : due; badge.setAttribute('aria-label', 'รอทวน ' + due + ' คำ'); }
@@ -246,25 +235,23 @@
   function sayBtn(text, label, cls) {
     return '<button class="btn btn--icon ' + (cls || '') + '" type="button" data-act="say" data-text="' + esc(text) + '" aria-label="' + esc(label || ('ฟังเสียง ' + text)) + '"' + (TTS ? '' : ' disabled') + '>' + I.sound + '</button>';
   }
-  function plantHTML(l, opts) {
-    opts = opts || {};
+  /* one lesson on a stage track: a numbered blob, as on the deck's "Order" slide */
+  function nodeHTML(l) {
     var open = lessonOpen(l), done = S.done[l.id], cur = currentLesson();
-    var state = done ? 'done' : (cur === l ? 'now' : (open ? 'open' : 'seed'));
-    if (opts.force) state = opts.force;
-    var hue = (l.n % 4) + 1;
-    var fig = '<span class="plant__fig" aria-hidden="true"><span class="plant__head" lang="en">' + esc(l.head) + '</span><span class="plant__stem"><i>(</i><i>)</i></span></span>';
-    var label = opts.nolabel ? '' : '<span class="plant__label"><span class="plant__n">บทที่ ' + (l.li + 1) + '</span><span class="plant__t">' + esc(l.title) + '</span>' + (done ? '<span class="plant__s">ได้ ' + done.best + '%</span>' : '') + '</span>';
-    var aria = 'บทที่ ' + (l.li + 1) + ' ' + l.title + (done ? ' ผ่านแล้ว ได้ ' + done.best + '%' : state === 'now' ? ' บทที่ควรเรียนต่อ' : state === 'seed' ? ' ยังล็อกอยู่' : ' เปิดให้เรียนแล้ว');
-    var cls = 'plant' + (opts.grow ? ' is-growing' : '');
-    if (state === 'seed' || opts.static) return '<div class="' + cls + '" data-state="' + state + '" data-hue="' + hue + '">' + fig + label + '<span class="visually-hidden">' + esc(aria) + '</span></div>';
-    return '<a class="' + cls + '" data-state="' + state + '" data-hue="' + hue + '" href="#/lesson/' + l.id + '" aria-label="' + esc(aria) + '">' + fig + label + '</a>';
+    var state = done ? 'done' : (cur === l ? 'now' : (open ? 'open' : 'locked'));
+    var shape = l.n % 4;
+    var aria = 'บทที่ ' + (l.li + 1) + ' ' + l.title + (done ? ' ผ่านแล้ว ได้ ' + done.best + '%' : state === 'now' ? ' บทที่ควรเรียนต่อ' : state === 'locked' ? ' ยังล็อกอยู่' : ' เปิดให้เรียนแล้ว');
+    var inner = '<span class="node__blob" data-shape="' + shape + '" aria-hidden="true">' + (done ? I.check : '<span class="num">' + (l.li + 1) + '</span>') + '</span>' +
+      '<span class="node__t">' + esc(l.title) + '</span>' +
+      (done ? '<span class="node__s">ได้ ' + done.best + '%</span>' : state === 'now' ? '<span class="node__s">เรียนต่อ</span>' : '');
+    if (state === 'locked') return '<div class="node" data-state="locked">' + inner + '<span class="visually-hidden">' + esc(aria) + '</span></div>';
+    return '<a class="node" data-state="' + state + '" href="#/lesson/' + l.id + '" aria-label="' + esc(aria) + '">' + inner + '</a>';
   }
-  function signHTML(st) {
+  function testNodeHTML(st) {
     var passed = stagePassed(st.si);
     var aria = 'ด่านสอบขั้น ' + (st.si + 1) + (passed ? ' ผ่านแล้ว' : ' ทำได้ทุกเมื่อ ถ้าผ่านจะเปิดขั้นถัดไป');
-    return '<a class="plant sign" data-state="' + (passed ? 'passed' : 'open') + '" href="#/check/' + st.id + '" aria-label="' + esc(aria) + '">' +
-      '<span class="plant__fig" aria-hidden="true"><span class="plant__head">' + (passed ? 'ผ่านด่าน' : 'ด่านสอบ') + '</span><span class="plant__stem"></span></span>' +
-      '<span class="plant__label"><span class="plant__n">ท้ายขั้น</span><span class="plant__t">' + (passed ? 'ผ่านแล้ว' : 'สอบข้ามได้') + '</span></span></a>';
+    return '<a class="node node--test" data-state="' + (passed ? 'done' : 'open') + '" href="#/check/' + st.id + '" aria-label="' + esc(aria) + '">' +
+      '<span class="node__blob" aria-hidden="true">' + I.flag + '</span><span class="node__t">' + (passed ? 'ผ่านด่านแล้ว' : 'ด่านสอบ') + '</span></a>';
   }
 
   /* ---------------- views ---------------- */
@@ -272,13 +259,12 @@
     opts = opts || {};
     document.body.dataset.mode = opts.mode || '';
     app.innerHTML = html;
-    applyTears(app);
     chrome();
     if (!opts.keepScroll) window.scrollTo(0, 0);
     if (opts.focus !== false) { var f = opts.focus ? $(opts.focus, app) : app; if (f) f.focus({ preventScroll: true }); }
   }
 
-  /* home: today + the garden roadmap */
+  /* home: a cover slide for today, then one slide per stage */
   function viewHome() {
     var cur = currentLesson(), n = totalDone(), csi = currentStageIndex();
     var goal = S.settings.goal, xp = xpToday(), due = dueCards().length;
@@ -287,55 +273,61 @@
     if (fresh) {
       h1 = 'เริ่มจากศูนย์<br>วันละบทก็พูดได้';
       lead = 'บทแรกใช้เวลาราวสิบนาที ฟังเสียงจริงแล้วพูดตามได้ทันที';
-      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + LESSONS[0].id + '">เริ่มบทแรก</a><a class="btn" href="#/check/s0">เคยเรียนแล้ว ทดสอบข้ามขั้น</a>';
+      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + LESSONS[0].id + '">เริ่มบทแรก</a><a class="btn btn--line" href="#/check/s0">เคยเรียนแล้ว สอบข้ามขั้น</a>';
     } else if (cur) {
       h1 = 'วันนี้มาเรียน<br>' + esc(cur.title);
       lead = esc(cur.goal);
-      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + cur.id + '">เรียนบทนี้</a>' + (due ? '<a class="btn" href="#/review">ทวน ' + due + ' คำก่อน</a>' : '') + (n ? '<a class="btn" href="#/mix">ฝึกรวมจุดที่ยังไม่แม่น</a>' : '<a class="btn" href="#/speak">ฝึกพูด</a>');
+      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + cur.id + '">เรียนบทนี้</a>' + (due ? '<a class="btn btn--line" href="#/review">ทวน ' + due + ' คำก่อน</a>' : (n ? '<a class="btn btn--line" href="#/mix">ฝึกรวมจุดที่ยังไม่แม่น</a>' : ''));
     } else if (!stagePassed(csi)) {
       h1 = 'พร้อมสอบด่าน<br>' + esc(C[csi].name);
       lead = 'ผ่านด่านนี้แล้วขั้นถัดไปจะเปิดทันที';
-      actions = '<a class="btn btn--primary btn--lg" href="#/check/' + C[csi].id + '">เริ่มด่านสอบ</a><a class="btn" href="#/mix">อุ่นเครื่องด้วยฝึกรวม</a>';
+      actions = '<a class="btn btn--primary btn--lg" href="#/check/' + C[csi].id + '">เริ่มด่านสอบ</a><a class="btn btn--line" href="#/mix">อุ่นเครื่องด้วยฝึกรวม</a>';
     } else {
-      h1 = 'สวนเต็มแล้ว<br>พูดทุกวันให้คล่อง';
-      lead = 'คุณเรียนครบทุกบท ฝึกพูดและทวนคำทุกวันเพื่อรักษาความคล่อง';
-      actions = '<a class="btn btn--primary btn--lg" href="#/speak">ฝึกพูด</a><a class="btn" href="#/mix">ฝึกรวม</a><a class="btn" href="#/review">ทวนคำ</a>';
+      h1 = 'ครบทุกบทแล้ว<br>พูดทุกวันให้คล่อง';
+      lead = 'ฝึกพูดและทวนคำทุกวันเพื่อรักษาความคล่อง';
+      actions = '<a class="btn btn--primary btn--lg" href="#/speak">ฝึกพูด</a><a class="btn btn--line" href="#/mix">ฝึกรวม</a>';
     }
+    var sk = streak();
+    var big = fresh ? { n: LESSONS.length, t: 'บท จากศูนย์ถึงพูดคล่อง' } : sk > 1 ? { n: sk, t: 'วันที่เรียนต่อเนื่อง' } : { n: n, t: 'บทที่ผ่านแล้ว จาก ' + LESSONS.length + ' บท' };
     var p = clamp(xp / goal, 0, 1);
-    var today =
-      '<section class="today container" aria-labelledby="today-h">' +
-        '<div><h1 id="today-h">' + h1 + '</h1><p class="lead">' + lead + '</p><div class="actions">' + actions + '</div></div>' +
-        '<aside class="today__card sheet" aria-labelledby="goal-h">' +
-          '<h2 id="goal-h">เป้าหมายวันนี้</h2>' +
-          '<div class="meter"><div class="meter__top"><b class="num">' + fmt(xp) + ' / ' + goal + ' XP</b><span>' + (xp >= goal ? 'ครบเป้าแล้ว' : 'อีก ' + (goal - xp) + ' XP') + '</span></div>' +
-          '<div class="meter__track" role="progressbar" aria-label="XP วันนี้" aria-valuemin="0" aria-valuemax="' + goal + '" aria-valuenow="' + Math.min(xp, goal) + '"><div class="meter__fill" style="--p:' + p + '"' + (p >= 1 ? ' data-full' : '') + '></div></div></div>' +
-          '<dl class="facts"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + ' วัน</dd></div><div><dt>รอทวน</dt><dd>' + (due ? '<a href="#/review">' + due + ' คำ</a>' : '0 คำ') + '</dd></div><div><dt>ระดับ</dt><dd>' + level() + '</dd></div></dl>' +
-        '</aside>' +
+    var cover =
+      '<section class="cover" aria-labelledby="today-h">' +
+        '<div class="container cover__in">' +
+          '<div class="cover__text"><h1 id="today-h">' + h1 + '</h1><p class="lead">' + lead + '</p><div class="actions">' + actions + '</div></div>' +
+          '<p class="cover__big" aria-label="' + big.n + ' ' + big.t + '"><b class="num">' + fmt(big.n) + '</b><span>' + big.t + '</span></p>' +
+        '</div>' +
+        '<div class="floor floor--teal"><div class="container floor__in">' +
+          '<div class="meter"><p class="meter__top"><span>แต้มวันนี้</span><b class="num">' + fmt(xp) + ' / ' + goal + '</b></p>' +
+          '<div class="meter__track" role="progressbar" aria-label="แต้มวันนี้" aria-valuemin="0" aria-valuemax="' + goal + '" aria-valuenow="' + Math.min(xp, goal) + '"><div class="meter__fill" style="--p:' + p + '"></div></div></div>' +
+          '<p class="floor__fact"><span>รอทวน</span>' + (due ? '<a href="#/review"><b class="num">' + due + ' คำ</b></a>' : '<b class="num">0 คำ</b>') + '</p>' +
+          '<p class="floor__fact"><span>' + (big.t.indexOf('บทที่ผ่าน') === 0 ? 'ต่อเนื่อง' : 'บทที่ผ่าน') + '</span><b class="num">' + (big.t.indexOf('บทที่ผ่าน') === 0 ? sk + ' วัน' : n + ' / ' + LESSONS.length) + '</b></p>' +
+          '<p class="floor__fact"><span>ระดับ</span><b>' + (level() === 'เริ่มต้น' ? 'เริ่มต้น' : level()) + '</b></p>' +
+        '</div></div>' +
       '</section>';
 
     var stages = C.map(function (st, si) {
-      var open = stageOpen(si), passed = stagePassed(si), dn = doneCount(si);
+      var open = stageOpen(si), passed = stagePassed(si), dn = doneCount(si), total = st.lessons.length;
       var state = passed ? 'passed' : (!open ? 'locked' : (si === csi ? 'now' : 'open'));
-      return '<li class="stage" id="stage-' + st.id + '" data-state="' + state + '">' +
-        '<div class="stage__head"><div><h3>ขั้น ' + (si + 1) + ' ' + esc(st.name) + '</h3><p class="stage__can">จบขั้นนี้แล้ว คุณจะ' + esc(st.cando) + '</p></div>' +
-        '<dl class="stage__meta"><div><dt>ระดับ</dt><dd>' + st.cefr + '</dd></div><div><dt>ผ่านแล้ว</dt><dd>' + dn + ' จาก ' + st.lessons.length + '</dd></div></dl></div>' +
-        '<div class="bed" tabindex="-1"><ol class="bed__row" data-tear="' + st.id + '">' +
-          st.lessons.map(function (l) { return '<li>' + plantHTML(l) + '</li>'; }).join('') +
-          '<li>' + signHTML(st) + '</li>' +
-        '</ol></div></li>';
+      var curIdx = st.lessons.findIndex(function (l) { return !S.done[l.id]; });
+      var fill = passed ? 1 : (curIdx < 0 ? 1 : curIdx / total);
+      return '<li class="slide" id="stage-' + st.id + '" data-tone="' + (si % 7) + '" data-state="' + state + '">' +
+        '<div class="container slide__in">' +
+          '<div class="slide__head"><h3>ขั้น ' + (si + 1) + ' ' + esc(st.name) + '</h3>' +
+            '<p class="slide__can">จบขั้นนี้แล้ว คุณจะ' + esc(st.cando) + '</p>' +
+            '<p class="slide__meta"><span>ระดับสากล ' + st.cefr + '</span><span>ผ่าน ' + dn + ' จาก ' + total + ' บท</span>' + (state === 'locked' ? '<span>' + I.lock + 'ยังล็อก</span>' : '') + '</p></div>' +
+          '<ol class="track" style="--fill:' + fill + '" aria-label="บทเรียนในขั้น ' + (si + 1) + '">' +
+            st.lessons.map(function (l) { return '<li>' + nodeHTML(l) + '</li>'; }).join('') +
+            '<li>' + testNodeHTML(st) + '</li>' +
+          '</ol>' +
+        '</div></li>';
     }).join('');
 
-    render(today +
-      '<section class="road container" id="road" aria-labelledby="road-h">' +
-        '<div class="road__head"><div><h2 id="road-h">เส้นทางของคุณ</h2><p>7 ขั้นจากไม่รู้อะไรเลยจนพูดได้คล่อง ทุกบทที่ผ่านจะกลายเป็นต้นไม้หนึ่งต้นในสวนนี้</p></div>' +
-        '<p class="road__overall"><b>' + n + '/' + LESSONS.length + '</b>บทที่ผ่านแล้ว</p></div>' +
-        '<ol class="stages">' + stages + '</ol>' +
-        (storageOk ? '' : '<p class="notice">เบราว์เซอร์นี้ไม่ยอมให้บันทึกความคืบหน้า (เช่นโหมดไม่ระบุตัวตน) ปิดหน้าแล้วความคืบหน้าจะหายไป</p>') +
+    render(cover +
+      '<section class="road" id="road" aria-labelledby="road-h">' +
+        '<div class="container road__head"><h2 id="road-h">เส้นทางของคุณ</h2><p>7 ขั้นจากไม่รู้อะไรเลยจนพูดได้คล่อง ขั้นละ 8 บทกับด่านสอบหนึ่งด่าน เคยเรียนมาแล้วก็กดด่านสอบเพื่อข้ามขั้นได้</p></div>' +
+        (storageOk ? '' : '<p class="container notice">เบราว์เซอร์นี้ไม่ยอมให้บันทึกความคืบหน้า (เช่นโหมดไม่ระบุตัวตน) ปิดหน้าแล้วความคืบหน้าจะหายไป</p>') +
+        '<ol class="slides">' + stages + '</ol>' +
       '</section>');
-
-    /* scroll the current stage's bed so the current plant is visible on small screens */
-    var nowPlant = $('.plant[data-state="now"]', app);
-    if (nowPlant) { var bed = nowPlant.closest('.bed'); var li = nowPlant.parentElement; if (bed && li && li.offsetLeft > bed.clientWidth - 120) bed.scrollLeft = li.offsetLeft - 24; }
   }
 
   /* lesson intro: notes, words, sentences */
@@ -344,7 +336,11 @@
     var items = buildLesson(l).length;
     var start = open
       ? '<button class="btn btn--primary btn--lg" type="button" data-act="start" data-id="' + l.id + '">' + (done ? 'ฝึกบทนี้อีกครั้ง' : 'เริ่มฝึก ' + items + ' ข้อ') + '</button>'
-      : '<button class="btn btn--primary btn--lg" type="button" disabled>ยังล็อกอยู่</button>';
+      : (function () {
+          var prev = l.li > 0 ? l.stage.lessons[l.li - 1] : null;
+          var go = prev ? '<a class="btn btn--primary btn--lg" href="#/lesson/' + prev.id + '">ไปบทก่อนหน้า</a>' : '<a class="btn btn--primary btn--lg" href="#/check/' + C[l.si - 1].id + '">สอบผ่านขั้น ' + l.si + ' เพื่อเปิด</a>';
+          return go + '<span class="locked">' + I.lock + 'ยังล็อกอยู่</span>';
+        })();
     var lockNote = open ? '' : '<p class="notice">บทนี้จะเปิดเมื่อผ่านบทก่อนหน้า หรือผ่านด่านสอบของขั้นก่อน อ่านเนื้อหาล่วงหน้าได้เลย</p>';
     var abc = l.extra === 'alphabet'
       ? '<section class="block" aria-labelledby="abc-h"><h2 id="abc-h">ตัวอักษร A ถึง Z</h2><p class="muted">แตะเพื่อฟังชื่อตัวอักษรและคำตัวอย่าง</p><ul class="abc">' +
@@ -534,7 +530,7 @@
   function startPlay(kind, obj) {
     hush();
     var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : buildCheck(obj);
-    P = { kind: kind, obj: obj, queue: items.slice(), total: items.length, finished: 0, right: 0, scored: 0, phase: 'answer', sel: null, line: [], tries: 0, missed: [] };
+    P = { kind: kind, obj: obj, queue: items.slice(), total: items.length, step: 0, planned: items.length, confirmQuit: false, finished: 0, right: 0, scored: 0, phase: 'answer', sel: null, line: [], tries: 0, missed: [] };
     items.forEach(function (it) { it.first = true; });
     playRender();
   }
@@ -577,6 +573,10 @@
     return h + '</div>';
   }
   function barHTML(it) {
+    if (P.confirmQuit) {
+      return '<div class="feedback" data-mark="quit" role="alertdialog" aria-labelledby="quit-h"><div class="container feedback__in"><div class="feedback__msg"><h2 id="quit-h">ออกจากแบบฝึกนี้ไหม</h2><p class="th">ตอบไปแล้ว ' + P.step + ' ข้อ ถ้าออกตอนนี้คะแนนรอบนี้จะไม่ถูกบันทึก</p></div>' +
+        '<div class="feedback__side"><button class="btn btn--line btn--lg" type="button" data-act="quityes">ออก</button><button class="btn btn--primary btn--lg" type="button" data-act="quitno" id="next">ทำต่อ</button></div></div></div>';
+    }
     if (P.phase === 'feedback') {
       var good = P.lastRight;
       var head = good ? ['ถูกต้อง', 'ใช่เลย', 'เยี่ยม', 'แม่นมาก'][Math.floor(Math.random() * 4)] : 'ยังไม่ใช่';
@@ -594,7 +594,7 @@
         '<div class="feedback__side">' + (it.en ? sayBtn(it.en) : '') + '<button class="btn btn--primary btn--lg" type="button" data-act="next" id="next">ไปต่อ</button></div></div></div>';
     }
     var left = '', right = '';
-    if (it.t === 'mcq' || it.t === 'pair') left = '<p class="muted small">แตะคำตอบ หรือกดเลข 1 ถึง ' + it.opts.length + '</p>';
+    if (it.t === 'mcq' || it.t === 'pair') left = '<p class="muted small"><span class="kbd-hint">กดเลข 1 ถึง ' + it.opts.length + ' หรือ</span> แตะคำตอบ</p>';
     if (it.t === 'match') left = '<p class="muted small">แตะคำอังกฤษ แล้วแตะความหมายที่คู่กัน</p>';
     if (it.t === 'tiles' || it.t === 'type') { left = '<button class="link" type="button" data-act="giveup">ไม่รู้ ดูเฉลย</button>'; right = '<button class="btn btn--primary btn--lg" type="button" data-act="check" id="check"' + (it.t === 'tiles' ? ' disabled' : '') + '>ตรวจคำตอบ</button>'; }
     if (it.t === 'speak') left = '<button class="link" type="button" data-act="skip">พูดตอนนี้ไม่ได้ ข้ามข้อนี้</button>';
@@ -608,8 +608,8 @@
     render(
       '<div class="player">' +
         '<div class="container player__bar"><button class="btn btn--icon btn--sm" type="button" data-act="quit" aria-label="ออกจากแบบฝึก">' + I.close + '</button>' +
-        '<div class="progress" role="progressbar" aria-label="ความคืบหน้า ' + esc(label) + '" aria-valuemin="0" aria-valuemax="' + P.total + '" aria-valuenow="' + P.finished + '"><i style="--p:' + (P.finished / P.total) + '"></i></div>' +
-        '<span class="player__count">' + Math.min(P.finished + 1, P.total) + ' / ' + P.total + '</span></div>' +
+        '<div class="progress" role="progressbar" aria-label="ความคืบหน้า ' + esc(label) + '" aria-valuemin="0" aria-valuemax="' + P.planned + '" aria-valuenow="' + P.step + '"><i style="--p:' + (P.step / P.planned) + '"></i></div>' +
+        '<span class="player__count">' + Math.min(P.step + 1, P.planned) + ' / ' + P.planned + '</span></div>' +
         '<div class="container stage-area" id="task">' + taskHTML(it) + '</div>' +
         '<div id="bar">' + barHTML(it) + '</div>' +
       '</div>', { mode: 'play', focus: false });
@@ -618,7 +618,17 @@
     if (it.listen) setTimeout(function () { say(it.listen); }, 250);
     else if (it.t === 'mcq' && it.big) setTimeout(function () { say(it.say); }, 250);
   }
-  function updateBar() { var it = P.queue[0]; $('#bar').innerHTML = barHTML(it); if (P.phase === 'feedback') { var n = $('#next'); if (n) n.focus({ preventScroll: true }); } }
+  function leavePlay() { if (/^#\/mix/.test(location.hash)) location.hash = '#/'; else route(); }
+  function askQuit() {
+    if (!P) return;
+    if (P.step === 0 && P.phase === 'answer') { leavePlay(); return; }
+    P.confirmQuit = true; updateBar();
+  }
+  function updateBar() {
+    var it = P.queue[0]; $('#bar').innerHTML = barHTML(it);
+    var f = (P.phase === 'feedback' || P.confirmQuit) ? $('#next') : ($('#answer:not([disabled])') || $('.opt:not([disabled])') || $('.tile:not([disabled])') || $('.mic:not([disabled])'));
+    if (f) f.focus({ preventScroll: true });
+  }
   function settle(right, scored) {
     var it = P.queue[0];
     P.phase = 'feedback'; P.lastRight = right;
@@ -631,7 +641,8 @@
   }
   function nextItem() {
     var it = P.queue.shift();
-    if (!P.lastRight && it.first && it.t !== 'speak') { var again = Object.assign({}, it, { first: false }); if (again.bank) again.bank = shuffle(again.bank); if (again.opts && again.t === 'mcq') again.opts = shuffle(again.opts); P.queue.push(again); }
+    P.step++;
+    if (!P.lastRight && it.first && it.t !== 'speak') { P.planned++; var again = Object.assign({}, it, { first: false }); if (again.bank) again.bank = shuffle(again.bank); if (again.opts && again.t === 'mcq') again.opts = shuffle(again.opts); P.queue.push(again); }
     else P.finished++;
     if (!P.lastRight && !it.first) { /* second miss: move on */ }
     playRender();
@@ -648,13 +659,13 @@
       var nx = LESSONS[o.n + 1];
       var nextBtn = !passed
         ? '<button class="btn btn--primary btn--lg" type="button" data-act="start" data-id="' + o.id + '">ลองอีกรอบ</button>'
-        : (o.li === o.stage.lessons.length - 1 ? '<a class="btn btn--primary btn--lg" href="#/check/' + o.stage.id + '">ไปด่านสอบท้ายขั้น</a>' : (nx ? '<a class="btn btn--primary btn--lg" href="#/lesson/' + nx.id + '">บทถัดไป</a>' : '<a class="btn btn--primary btn--lg" href="#/">กลับไปที่สวน</a>'));
+        : (o.li === o.stage.lessons.length - 1 ? '<a class="btn btn--primary btn--lg" href="#/check/' + o.stage.id + '">ไปด่านสอบท้ายขั้น</a>' : (nx ? '<a class="btn btn--primary btn--lg" href="#/lesson/' + nx.id + '">บทถัดไป</a>' : '<a class="btn btn--primary btn--lg" href="#/">กลับไปที่เส้นทาง</a>'));
       html =
         '<div class="result">' +
-          '<div class="result__plant" data-tear="result-' + o.id + '">' + plantHTML(o, { force: passed ? 'done' : 'now', grow: grew, nolabel: true, static: true }) + '</div>' +
-          '<h1>' + (passed ? (grew ? 'ต้นไม้บทนี้โตแล้ว' : 'ฝึกซ้ำได้ดีมาก') : 'อีกนิดเดียว') + '</h1>' +
-          '<p class="lead">' + (passed ? 'คำศัพท์จากบท' + esc(o.title) + 'เข้าคลังแล้ว ระบบจะชวนทวนเมื่อใกล้ลืม' : 'ต้องได้ 60% ขึ้นไปต้นไม้ถึงจะโต ข้อที่พลาดรอบนี้จะจำได้ดีขึ้นในรอบหน้า') + '</p>' +
-          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' XP</dd></div><div><dt>คำใหม่เข้าคลัง</dt><dd>' + added + ' คำ</dd></div></dl>' +
+          '<p class="result__big" data-pass="' + passed + '"' + (grew ? ' data-new' : '') + '><b class="num">' + score + '%</b><span>' + (passed ? 'ผ่านบท' + esc(o.title) : 'ต้องได้ 60% ขึ้นไป') + '</span></p>' +
+          '<h1>' + (passed ? (grew ? 'ผ่านบทนี้แล้ว' : 'ฝึกซ้ำได้ดีมาก') : 'อีกนิดเดียว') + '</h1>' +
+          '<p class="lead">' + (passed ? 'คำศัพท์จากบท' + esc(o.title) + 'เข้าคลังแล้ว ระบบจะชวนทวนเมื่อใกล้ลืม' : 'ข้อที่พลาดรอบนี้จะจำได้ดีขึ้นในรอบหน้า ลองอีกรอบได้เลย') + '</p>' +
+          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' แต้ม</dd></div><div><dt>คำใหม่เข้าคลัง</dt><dd>' + added + ' คำ</dd></div></dl>' +
           '<div class="actions">' + nextBtn + (passed ? '<button class="btn" type="button" data-act="start" data-id="' + o.id + '">ฝึกบทนี้อีกครั้ง</button>' : '<a class="btn" href="#/lesson/' + o.id + '">อ่านเนื้อหาอีกรอบ</a>') + '<a class="btn" href="#/">ดูเส้นทาง</a></div>' +
         '</div>';
     } else if (P.kind === 'mix') {
@@ -665,7 +676,7 @@
         '<div class="result">' +
           '<h1>' + (score >= 80 ? 'แม่นขึ้นเรื่อย ๆ' : 'ฝึกรวมเสร็จแล้ว') + '</h1>' +
           '<p class="lead">' + (miss.length ? 'คำที่พลาดถูกส่งกลับไปให้ทวนอีกครั้งวันนี้ ข้อที่ควรดูซ้ำอยู่ด้านล่าง' : 'ไม่พลาดเลยสักข้อ ลองฝึกอีกชุดหรือไปเรียนบทใหม่') + '</p>' +
-          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' XP</dd></div><div><dt>ข้อที่พลาด</dt><dd>' + P.missed.length + ' ข้อ</dd></div></dl>' +
+          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' แต้ม</dd></div><div><dt>ข้อที่พลาด</dt><dd>' + P.missed.length + ' ข้อ</dd></div></dl>' +
           (miss.length ? '<ul class="sents missed">' + miss.map(function (m) { return '<li><button class="sent" type="button" data-act="say" data-text="' + esc(m.en) + '"' + (TTS ? '' : ' disabled') + '>' + I.sound + '<span><span class="sent__en" lang="en">' + esc(m.en) + '</span><span class="sent__th">' + esc(m.why || m.th || '') + '</span></span></button></li>'; }).join('') + '</ul>' : '') +
           '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="startmix">ฝึกอีกชุด</button><a class="btn" href="#/">ดูเส้นทาง</a></div>' +
         '</div>';
@@ -679,7 +690,7 @@
         '<div class="result">' +
           '<h1>' + (ok ? 'ผ่านด่าน' + esc(o.name) : 'ยังไม่ผ่านด่านนี้') + '</h1>' +
           '<p class="lead">' + (ok ? (nst ? 'ขั้น ' + (o.si + 2) + ' ' + esc(nst.name) + ' เปิดแล้ว ระดับของคุณตอนนี้คือ ' + o.cefr : 'คุณผ่านทุกขั้นแล้ว ระดับ ' + o.cefr + ' ฝึกพูดทุกวันเพื่อรักษาความคล่อง') : 'ต้องได้ 75% ขึ้นไป ทวนบทที่ยังไม่แม่นแล้วกลับมาลองใหม่ได้ทุกเมื่อ') + '</p>' +
-          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' XP</dd></div><div><dt>ระดับ</dt><dd>' + level() + '</dd></div></dl>' +
+          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' แต้ม</dd></div><div><dt>ระดับ</dt><dd>' + level() + '</dd></div></dl>' +
           '<div class="actions">' + (ok && nst ? '<a class="btn btn--primary btn--lg" href="#/lesson/' + nst.lessons[0].id + '">เริ่มขั้น ' + (o.si + 2) + '</a>' : '<button class="btn btn--primary btn--lg" type="button" data-act="startcheck" data-id="' + o.id + '">สอบอีกครั้ง</button>') + '<a class="btn" href="#/">ดูเส้นทาง</a></div>' +
         '</div>';
     }
@@ -804,7 +815,7 @@
     render('<div class="view container">' +
       '<div class="review__bar"><h1 class="section-h" style="margin:0">ทวนคำศัพท์</h1><span class="muted num">' + (R.i + 1) + ' / ' + R.cards.length + '</span></div>' +
       '<div class="flash sheet" aria-live="polite">' + front + back + '</div>' + rate +
-      '<p class="muted small" style="text-align:center; margin-top: var(--space-lg)">คีย์ลัด: เว้นวรรคเพื่อเปิด และเลข 1 ถึง 4 เพื่อให้คะแนน</p></div>', { focus: R.shown ? '[data-r="2"]' : '#reveal', keepScroll: true });
+      '<p class="muted small kbd-hint" style="text-align:center; margin-top: var(--space-lg)">คีย์ลัด: เว้นวรรคเพื่อเปิด และเลข 1 ถึง 4 เพื่อให้คะแนน</p></div>', { focus: R.shown ? '[data-r="2"]' : '#reveal', keepScroll: true });
     if (!R.shown && en) setTimeout(function () { say(c.w[0]); }, 200);
   }
   function rateCard(r) {
@@ -853,7 +864,7 @@
           : '<ul class="opts opts--stack">' + roleChoices(d).map(function (c, i) { return '<li><button class="opt" type="button" data-act="rolepick" data-v="' + esc(c) + '"><kbd>' + (i + 1) + '</kbd><span lang="en">' + esc(c) + '</span></button></li>'; }).join('') + '</ul>' + (SP.note ? '<p class="heard" aria-live="polite">' + SP.note + '</p>' : '')) +
         '</div>';
     } else {
-      turn = '<div class="turn"><p class="turn__q"><b>จบบทสนทนา</b> ' + (SP.miss ? 'พลาด ' + SP.miss + ' ครั้ง' : 'ไม่พลาดเลย') + ' ได้ ' + (SP.hard ? 10 : 5) + ' XP</p>' +
+      turn = '<div class="turn"><p class="turn__q"><b>จบบทสนทนา</b> ' + (SP.miss ? 'พลาด ' + SP.miss + ' ครั้ง' : 'ไม่พลาดเลย') + ' ได้ ' + (SP.hard ? 10 : 5) + ' แต้ม</p>' +
         '<div class="speak__row"><button class="btn btn--primary" type="button" data-act="roleagain">เล่นอีกครั้ง</button><button class="btn" type="button" data-act="roleswap">สลับไปเล่นอีกบท</button>' + (SRC && !SP.hard ? '<button class="btn" type="button" data-act="rolehard">ลองแบบพูดเอง</button>' : '') + '</div></div>';
     }
     return '<div class="speak__card sheet"><p class="muted small">' + esc(d.th) + (SP.swap ? ' (คุณเล่นอีกบท)' : '') + '</p><h2>' + esc(d.title) + '</h2>' +
@@ -873,7 +884,7 @@
     if (!stageOpen(SP.si)) SP.si = 0;
     var list = SP.mode === 'shadow' ? speakSentences(SP.si) : SP.mode === 'role' ? C[SP.si].dialogs : C[SP.si].talk;
     SP.i = clamp(SP.i, 0, list.length - 1);
-    var pills = C.map(function (st, si) { var o = stageOpen(si); return '<button type="button" data-act="spstage" data-si="' + si + '" aria-pressed="' + (si === SP.si) + '"' + (o ? '' : ' disabled title="ยังล็อกอยู่"') + '>' + st.cefr + '</button>'; }).join('');
+    var pills = '<div class="field field--inline"><label for="sp-level">ระดับ</label><select class="input" id="sp-level" data-act="splevel">' + C.map(function (st, si) { var o = stageOpen(si); return '<option value="' + si + '"' + (si === SP.si ? ' selected' : '') + (o ? '' : ' disabled') + '>ขั้น ' + (si + 1) + ' ' + esc(st.name) + (o ? '' : ' (ยังล็อก)') + '</option>'; }).join('') + '</select></div>';
     var support = SRC ? '' : (window.MediaRecorder && navigator.mediaDevices ? '<p class="notice">เบราว์เซอร์นี้ตรวจเสียงพูดไม่ได้ ปุ่มไมค์จะอัดเสียงแทน แล้วให้คุณฟังเทียบกับเสียงต้นฉบับ (ถ้าอยากให้ระบบตรวจ ใช้ Chrome หรือ Edge)</p>' : '<p class="notice">เบราว์เซอร์นี้ใช้ไมค์ไม่ได้ ฝึกด้วยการฟังแล้วพูดตามออกเสียงดัง ๆ ก็ได้ผลเช่นกัน</p>');
     var card;
     if (SP.mode === 'role') {
@@ -897,7 +908,7 @@
     render('<div class="view container speak">' +
       '<div class="view__head" style="margin:0"><h1>ห้องฝึกพูด</h1><p>พูดออกเสียงจริงทุกวันคือทางลัดสู่ความคล่อง ฟัง พูดตาม แล้วดูว่าระบบได้ยินตรงแค่ไหน</p></div>' +
       '<div class="speak__controls"><div class="seg" role="group" aria-label="โหมด"><button type="button" data-act="spmode" data-m="shadow" aria-pressed="' + (SP.mode === 'shadow') + '">พูดตามประโยค</button><button type="button" data-act="spmode" data-m="talk" aria-pressed="' + (SP.mode === 'talk') + '">ตอบคำถาม</button><button type="button" data-act="spmode" data-m="role" aria-pressed="' + (SP.mode === 'role') + '">บทสนทนา</button></div>' +
-      '<div class="seg" role="group" aria-label="เลือกระดับ">' + pills + '</div></div>' + support + card +
+      pills + '</div>' + support + card +
       '<div class="speak__nav"><button class="btn" type="button" data-act="spprev"' + (SP.i === 0 ? ' disabled' : '') + '>ก่อนหน้า</button>' +
       '<span class="muted num">' + (SP.i + 1) + ' / ' + list.length + '</span>' +
       (SP.mode === 'shadow' ? '<label class="check small"><input type="checkbox" data-act="sphide"' + (SP.hideTh ? ' checked' : '') + '>ซ่อนคำแปล</label>' : '') +
@@ -989,7 +1000,7 @@
     var goal = S.settings.goal;
     for (var d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
       var k = dayKey(d), x = S.days[k] || 0, lv = x === 0 ? 0 : x < goal / 2 ? 1 : x < goal ? 2 : 3;
-      cells.push('<i data-l="' + lv + '"' + (k === dayKey() ? ' data-today' : '') + ' title="' + k + ' ได้ ' + x + ' XP"></i>');
+      cells.push('<i data-l="' + lv + '"' + (k === dayKey() ? ' data-today' : '') + ' title="' + k + ' ได้ ' + x + ' แต้ม"></i>');
     }
     var activeDays = Object.keys(S.days).filter(function (k) { return S.days[k] > 0; }).length;
     var stageRows = C.map(function (st, si) {
@@ -999,15 +1010,15 @@
     }).join('');
     render('<div class="view container">' +
       '<div class="view__head"><h1>สถิติของคุณ</h1><p>ทุกตัวเลขนับจากการเรียนในเบราว์เซอร์เครื่องนี้</p></div>' +
-      '<dl class="stats"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + '<small>วัน</small></dd></div><div><dt>XP รวม</dt><dd title="' + fmt(S.xp) + ' XP">' + fmtBig(S.xp) + '</dd></div><div><dt>บทที่ผ่าน</dt><dd>' + totalDone() + '<small>/ ' + LESSONS.length + '</small></dd></div><div><dt>คำในคลัง</dt><dd>' + fmt(keys.length) + '</dd></div><div><dt>จำได้แม่น</dt><dd>' + fmt(strong) + '<small>คำ</small></dd></div></dl>' +
+      '<dl class="stats"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + '<small>วัน</small></dd></div><div><dt>แต้มรวม</dt><dd title="' + fmt(S.xp) + ' แต้ม">' + fmtBig(S.xp) + '</dd></div><div><dt>บทที่ผ่าน</dt><dd>' + totalDone() + '<small>/ ' + LESSONS.length + '</small></dd></div><div><dt>คำในคลัง</dt><dd>' + fmt(keys.length) + '</dd></div><div><dt>จำได้แม่น</dt><dd>' + fmt(strong) + '<small>คำ</small></dd></div></dl>' +
       '<div class="panel-grid"><div>' +
         '<h2 class="section-h">16 สัปดาห์ที่ผ่านมา</h2><div class="heat" role="img" aria-label="ปฏิทินการเรียน เรียนไปแล้ว ' + activeDays + ' วัน">' + cells.join('') + '</div>' +
         '<p class="heat-key">ไม่ได้เรียน <i></i><i></i><i></i><i></i> ครบเป้า</p>' +
-        '<h2 class="section-h" style="margin-top: var(--space-2xl)">ทีละขั้น</h2><div class="table-wrap"><table><thead><tr><th scope="col">ขั้น</th><th scope="col">ระดับ</th><th scope="col">บทเรียน</th><th scope="col">คะแนนเฉลี่ย</th><th scope="col">ด่านสอบ</th></tr></thead><tbody>' + stageRows + '</tbody></table></div>' +
+        '<h2 class="section-h" style="margin-top: var(--space-2xl)">ทีละขั้น</h2><div class="table-wrap"><table class="stage-table"><thead><tr><th scope="col">ขั้น</th><th scope="col">ระดับ</th><th scope="col">บทเรียน</th><th scope="col">คะแนนเฉลี่ย</th><th scope="col">ด่านสอบ</th></tr></thead><tbody>' + stageRows + '</tbody></table></div>' +
       '</div>' +
       '<form class="settings sheet" id="settings" aria-labelledby="set-h" onsubmit="return false">' +
         '<h2 id="set-h">ตั้งค่า</h2>' +
-        '<fieldset class="seg"><legend>เป้าหมาย XP ต่อวัน</legend>' + [10, 20, 30, 50].map(function (g) { return '<input type="radio" name="goal" id="g' + g + '" value="' + g + '"' + (S.settings.goal === g ? ' checked' : '') + ' data-act="setgoal"><label for="g' + g + '">' + g + (g === 10 ? ' สบาย ๆ' : g === 20 ? ' ปกติ' : g === 30 ? ' จริงจัง' : ' เข้มข้น') + '</label>'; }).join('') + '</fieldset>' +
+        '<fieldset class="seg"><legend>เป้าหมายแต้มต่อวัน</legend>' + [10, 20, 30, 50].map(function (g) { return '<input type="radio" name="goal" id="g' + g + '" value="' + g + '"' + (S.settings.goal === g ? ' checked' : '') + ' data-act="setgoal"><label for="g' + g + '">' + g + (g === 10 ? ' สบาย ๆ' : g === 20 ? ' ปกติ' : g === 30 ? ' จริงจัง' : ' เข้มข้น') + '</label>'; }).join('') + '</fieldset>' +
         '<div class="field"><label for="voice">เสียงผู้อ่าน</label><select class="input" id="voice" name="voice" data-act="setvoice"' + (TTS ? '' : ' disabled') + '></select></div>' +
         '<div class="field"><label for="rate">ความเร็วเสียง <b id="rate-v" class="num">' + S.settings.rate.toFixed(2) + '</b> เท่า</label><input type="range" id="rate" name="rate" min="0.6" max="1.2" step="0.05" value="' + S.settings.rate + '" data-act="setrate"' + (TTS ? '' : ' disabled') + '></div>' +
         '<div class="actions"><button class="btn btn--sm" type="button" data-act="say" data-text="Hello! Nice to meet you. Let\'s practice English together."' + (TTS ? '' : ' disabled') + '>' + I.sound + 'ลองฟังเสียง</button></div>' +
@@ -1054,7 +1065,7 @@
   }
 
   /* ---------------- events ---------------- */
-  var resetArmed = 0;
+  var resetArmed = 0, prevState = null;
   document.addEventListener('click', function (e) {
     var el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
@@ -1064,7 +1075,9 @@
       case 'sayall': { var l = byId[el.getAttribute('data-id')]; hush(); l.sents.forEach(function (s) { say(s[0], false, true); }); break; }
       case 'start': startPlay('lesson', byId[el.getAttribute('data-id')]); break;
       case 'startcheck': startPlay('check', stageById[el.getAttribute('data-id')]); break;
-      case 'quit': if (/^#\/mix/.test(location.hash)) location.hash = '#/'; else route(); break;
+      case 'quit': askQuit(); break;
+      case 'quitno': if (P) { P.confirmQuit = false; updateBar(); } break;
+      case 'quityes': leavePlay(); break;
       case 'm': matchPick(el); break;
       case 'startmix': startPlay('mix', null); break;
       case 'opt': chooseOpt(el); break;
@@ -1072,7 +1085,7 @@
       case 'untile': tileMove(el, false); break;
       case 'check': checkAnswer(); break;
       case 'giveup': if (P && P.phase === 'answer') settle(false); break;
-      case 'skip': if (P && P.phase === 'answer') { if (rec) { try { rec.abort(); } catch (x) {} rec = null; } P.queue.shift(); P.finished++; playRender(); } break;
+      case 'skip': if (P && P.phase === 'answer') { if (rec) { try { rec.abort(); } catch (x) {} rec = null; } P.queue.shift(); P.finished++; P.step++; playRender(); } break;
       case 'next': if (P && P.phase === 'feedback') nextItem(); break;
       case 'mic': micPress(el); break;
       case 'reveal': if (R) { R.shown = true; reviewRender(); } break;
@@ -1109,6 +1122,7 @@
       case 'rolehard': SP.hard = true; SP.step = -1; viewSpeak(); break;
       case 'rolemode': SP.hard = el.getAttribute('data-h') === '1'; SP.choices = null; SP.note = ''; viewSpeak(); break;
       case 'wst': WV.st = el.getAttribute('data-st'); $$('[data-act="wst"]').forEach(function (b) { b.setAttribute('aria-pressed', b === el); }); wordsList(); break;
+      case 'undoimport': if (prevState) { S = sanitize(JSON.parse(prevState)); prevState = null; save(); viewProgress(); setStatus('กลับไปใช้ข้อมูลเดิมแล้ว'); } break;
       case 'export': {
         var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
         var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'suanpasa-backup-' + dayKey() + '.json';
@@ -1124,13 +1138,14 @@
   document.addEventListener('change', function (e) {
     var el = e.target, act = el.getAttribute && el.getAttribute('data-act');
     if (!act) return;
-    if (act === 'setgoal') { S.settings.goal = +el.value; save(); chrome(); setStatus('ตั้งเป้าวันละ ' + el.value + ' XP แล้ว'); }
+    if (act === 'setgoal') { S.settings.goal = +el.value; save(); chrome(); setStatus('ตั้งเป้าวันละ ' + el.value + ' แต้มแล้ว'); }
     if (act === 'setvoice') { S.settings.voice = el.value; save(); say('This is my voice.'); }
     if (act === 'setdir') { S.settings.dir = el.value; save(); setStatus('บันทึกแล้ว'); }
     if (act === 'setfree') { S.settings.free = el.checked; save(); setStatus(el.checked ? 'เปิดทุกบทแล้ว' : 'กลับไปเรียนตามลำดับแล้ว'); }
     if (act === 'setrate') { S.settings.rate = +el.value; save(); say('Can you hear the difference?'); }
     if (act === 'sphide') { SP.hideTh = el.checked; viewSpeak(); var c = $('[data-act="sphide"]'); if (c) c.focus(); }
     if (act === 'wall') { WV.all = el.checked; wordsList(); }
+    if (act === 'splevel') { SP.si = +el.value; SP.i = 0; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); var sl = $('#sp-level'); if (sl) sl.focus(); }
     if (act === 'import') {
       var f = el.files && el.files[0]; if (!f) return;
       if (f.size > 5 * 1024 * 1024) { setStatus('ไฟล์ใหญ่เกินไปสำหรับไฟล์สำรอง เลือกไฟล์ที่ชื่อขึ้นต้นด้วย suanpasa-backup', true); el.value = ''; return; }
@@ -1139,7 +1154,9 @@
         try {
           var data = JSON.parse(fr.result);
           if (!data || typeof data !== 'object' || !data.done || !data.srs) throw new Error('shape');
-          S = sanitize(data); save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว: ผ่าน ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' XP');
+          prevState = JSON.stringify(S);
+          S = sanitize(data); save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว: ผ่าน ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' แต้ม');
+          var stt = $('#set-status'); if (stt) stt.insertAdjacentHTML('beforeend', ' <button class="link" type="button" data-act="undoimport">ย้อนกลับเป็นข้อมูลเดิม</button>');
         } catch (x) { setStatus('ไฟล์นี้ไม่ใช่ไฟล์สำรองของสวนภาษา เลือกไฟล์ที่ชื่อขึ้นต้นด้วย suanpasa-backup', true); }
       };
       fr.onerror = function () { setStatus('อ่านไฟล์ไม่สำเร็จ ลองเลือกไฟล์อีกครั้ง', true); };
@@ -1156,6 +1173,8 @@
     var tag = (e.target.tagName || '').toLowerCase();
     if (P) {
       var it = P.queue[0];
+      if (e.key === 'Escape') { e.preventDefault(); if (P.confirmQuit) { P.confirmQuit = false; updateBar(); } else askQuit(); return; }
+      if (P.confirmQuit) return;
       if (e.key === 'Enter') {
         if (P.phase === 'feedback') { e.preventDefault(); nextItem(); return; }
         if (it && (it.t === 'type' || (it.t === 'tiles' && P.line.length)) && tag !== 'button') { e.preventDefault(); checkAnswer(); return; }
