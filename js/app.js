@@ -75,7 +75,30 @@
       return s;
     } catch (e) { return defaults(); }
   }
-  var S = load();
+  /* harden: coerce any stored or imported data into the shape the app expects */
+  function sanitize(s) {
+    var d = defaults();
+    if (!s || typeof s !== 'object') return d;
+    function obj(x) { return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; }
+    var out = { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: d.settings, created: +s.created || d.created };
+    Object.keys(obj(s.done)).forEach(function (k) { var v = s.done[k]; if (v && isFinite(+v.best)) out.done[k] = { best: clamp(Math.round(+v.best), 0, 100), at: +v.at || 0 }; });
+    Object.keys(obj(s.passed)).forEach(function (k) { if (s.passed[k]) out.passed[k] = true; });
+    out.xp = Math.max(0, Math.round(+s.xp) || 0);
+    Object.keys(obj(s.days)).forEach(function (k) { var v = +s.days[k]; if (/^\d{4}-\d{2}-\d{2}$/.test(k) && v > 0) out.days[k] = Math.round(v); });
+    Object.keys(obj(s.srs)).forEach(function (k) { var v = s.srs[k]; if (v && isFinite(+v.b) && isFinite(+v.d)) out.srs[k] = { b: clamp(Math.round(+v.b), 0, 8), d: Math.round(+v.d) }; });
+    var st = obj(s.settings);
+    out.settings = {
+      goal: [10, 20, 30, 50].indexOf(+st.goal) !== -1 ? +st.goal : 20,
+      rate: isFinite(+st.rate) ? clamp(+st.rate, 0.6, 1.2) : 0.9,
+      voice: typeof st.voice === 'string' ? st.voice : '',
+      free: !!st.free,
+      dir: st.dir === 'th' ? 'th' : 'en'
+    };
+    return out;
+  }
+  var S = sanitize(load());
+  function fmt(n) { return Number(n || 0).toLocaleString('th-TH'); }
+  function fmtBig(n) { n = Number(n || 0); return n >= 100000 ? new Intl.NumberFormat('th-TH', { notation: 'compact', maximumFractionDigits: 1 }).format(n) : fmt(n); }
   var storageOk = true;
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); storageOk = true; } catch (e) { storageOk = false; } }
 
@@ -174,6 +197,7 @@
   }
   function stopListening() { if (rec) { try { rec.stop(); } catch (e) {} } }
   function micError(code) {
+    if (code === 'aborted') return '';
     if (code === 'not-allowed' || code === 'service-not-allowed') return 'เบราว์เซอร์ยังไม่อนุญาตให้ใช้ไมค์ กดอนุญาตที่แถบที่อยู่ด้านบนแล้วลองใหม่';
     if (code === 'no-speech') return 'ยังไม่ได้ยินเสียงพูด ลองพูดใกล้ไมค์ขึ้นอีกนิด';
     if (code === 'network') return 'การฟังเสียงพูดต้องต่ออินเทอร์เน็ต ตรวจการเชื่อมต่อแล้วลองใหม่';
@@ -209,7 +233,7 @@
     var st = $('[data-status]');
     if (st) {
       var n = streak();
-      st.innerHTML = 'ต่อเนื่อง <b class="num">' + n + '</b> วัน<span class="hide-s">&ensp; วันนี้ <b class="num">' + xpToday() + '</b>/' + S.settings.goal + ' XP</span>';
+      st.innerHTML = 'ต่อเนื่อง <b class="num">' + n + '</b> วัน<span class="hide-s">&ensp; วันนี้ <b class="num">' + fmt(xpToday()) + '</b>/' + S.settings.goal + ' XP</span>';
     }
     var due = dueCards().length, badge = $('[data-due]');
     if (badge) { badge.hidden = !due; badge.textContent = due > 99 ? '99+' : due; badge.setAttribute('aria-label', 'รอทวน ' + due + ' คำ'); }
@@ -283,7 +307,7 @@
         '<div><h1 id="today-h">' + h1 + '</h1><p class="lead">' + lead + '</p><div class="actions">' + actions + '</div></div>' +
         '<aside class="today__card sheet" aria-labelledby="goal-h">' +
           '<h2 id="goal-h">เป้าหมายวันนี้</h2>' +
-          '<div class="meter"><div class="meter__top"><b class="num">' + xp + ' / ' + goal + ' XP</b><span>' + (xp >= goal ? 'ครบเป้าแล้ว' : 'อีก ' + (goal - xp) + ' XP') + '</span></div>' +
+          '<div class="meter"><div class="meter__top"><b class="num">' + fmt(xp) + ' / ' + goal + ' XP</b><span>' + (xp >= goal ? 'ครบเป้าแล้ว' : 'อีก ' + (goal - xp) + ' XP') + '</span></div>' +
           '<div class="meter__track" role="progressbar" aria-label="XP วันนี้" aria-valuemin="0" aria-valuemax="' + goal + '" aria-valuenow="' + Math.min(xp, goal) + '"><div class="meter__fill" style="--p:' + p + '"' + (p >= 1 ? ' data-full' : '') + '></div></div></div>' +
           '<dl class="facts"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + ' วัน</dd></div><div><dt>รอทวน</dt><dd>' + (due ? '<a href="#/review">' + due + ' คำ</a>' : '0 คำ') + '</dd></div><div><dt>ระดับ</dt><dd>' + level() + '</dd></div></dl>' +
         '</aside>' +
@@ -975,7 +999,7 @@
     }).join('');
     render('<div class="view container">' +
       '<div class="view__head"><h1>สถิติของคุณ</h1><p>ทุกตัวเลขนับจากการเรียนในเบราว์เซอร์เครื่องนี้</p></div>' +
-      '<dl class="stats"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + '<small>วัน</small></dd></div><div><dt>XP รวม</dt><dd>' + S.xp + '</dd></div><div><dt>บทที่ผ่าน</dt><dd>' + totalDone() + '<small>/ ' + LESSONS.length + '</small></dd></div><div><dt>คำในคลัง</dt><dd>' + keys.length + '</dd></div><div><dt>จำได้แม่น</dt><dd>' + strong + '<small>คำ</small></dd></div></dl>' +
+      '<dl class="stats"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + '<small>วัน</small></dd></div><div><dt>XP รวม</dt><dd title="' + fmt(S.xp) + ' XP">' + fmtBig(S.xp) + '</dd></div><div><dt>บทที่ผ่าน</dt><dd>' + totalDone() + '<small>/ ' + LESSONS.length + '</small></dd></div><div><dt>คำในคลัง</dt><dd>' + fmt(keys.length) + '</dd></div><div><dt>จำได้แม่น</dt><dd>' + fmt(strong) + '<small>คำ</small></dd></div></dl>' +
       '<div class="panel-grid"><div>' +
         '<h2 class="section-h">16 สัปดาห์ที่ผ่านมา</h2><div class="heat" role="img" aria-label="ปฏิทินการเรียน เรียนไปแล้ว ' + activeDays + ' วัน">' + cells.join('') + '</div>' +
         '<p class="heat-key">ไม่ได้เรียน <i></i><i></i><i></i><i></i> ครบเป้า</p>' +
@@ -1008,6 +1032,7 @@
   /* ---------------- router ---------------- */
   function route() {
     hush(); if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
+    if (mediaRec && mediaRec.state === 'recording') { try { mediaRec.stop(); } catch (e) {} }
     var parts = (location.hash.replace(/^#\/?/, '') || '').split('/').filter(Boolean);
     var v = parts[0] || 'home', a = parts[1];
     if (v !== 'review') R = null;
@@ -1016,6 +1041,7 @@
     setNav(v === 'lesson' || v === 'check' ? 'home' : v);
     if (v === 'lesson' && byId[a]) { viewLesson(byId[a]); document.title = byId[a].title + ' | สวนภาษา'; return; }
     if (v === 'check' && stageById[a]) { viewCheck(stageById[a]); document.title = 'ด่านสอบขั้น ' + (stageById[a].si + 1) + ' | สวนภาษา'; return; }
+    if ((v === 'lesson' || v === 'check') && a) { viewHome(); app.insertAdjacentHTML('afterbegin', '<p class="container notice" role="status" style="margin-top: var(--space-lg)">ไม่พบบทเรียนนี้ ลิงก์อาจเก่าหรือพิมพ์ผิด เลือกบทจากเส้นทางด้านล่างได้เลย</p>'); return; }
     var titles = { review: 'ทวนคำศัพท์', speak: 'ห้องฝึกพูด', words: 'คลังคำ', progress: 'สถิติ' };
     document.title = (titles[v] ? titles[v] + ' | ' : '') + 'สวนภาษา: ภาษาอังกฤษจากศูนย์ถึงพูดคล่อง';
     if (v === 'mix') { document.title = 'ฝึกรวม | สวนภาษา'; setNav('home'); startPlay('mix', null); return; }
@@ -1107,17 +1133,17 @@
     if (act === 'wall') { WV.all = el.checked; wordsList(); }
     if (act === 'import') {
       var f = el.files && el.files[0]; if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { setStatus('ไฟล์ใหญ่เกินไปสำหรับไฟล์สำรอง เลือกไฟล์ที่ชื่อขึ้นต้นด้วย suanpasa-backup', true); el.value = ''; return; }
       var fr = new FileReader();
       fr.onload = function () {
         try {
           var data = JSON.parse(fr.result);
           if (!data || typeof data !== 'object' || !data.done || !data.srs) throw new Error('shape');
-          var d = defaults(); Object.keys(d).forEach(function (k) { if (data[k] === undefined) data[k] = d[k]; });
-          data.settings = Object.assign(d.settings, data.settings || {});
-          S = data; save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว');
+          S = sanitize(data); save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว: ผ่าน ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' XP');
         } catch (x) { setStatus('ไฟล์นี้ไม่ใช่ไฟล์สำรองของสวนภาษา เลือกไฟล์ที่ชื่อขึ้นต้นด้วย suanpasa-backup', true); }
       };
-      fr.readAsText(f);
+      fr.onerror = function () { setStatus('อ่านไฟล์ไม่สำเร็จ ลองเลือกไฟล์อีกครั้ง', true); };
+      fr.readAsText(f); el.value = '';
     }
   });
   document.addEventListener('input', function (e) {
