@@ -1,4 +1,4 @@
-/* สวนภาษา: แอปเรียนภาษาอังกฤษ (ไม่มี build step ไม่มี dependency)
+/* Speakeasy: แอปเรียนภาษาอังกฤษ (ไม่มี build step ไม่มี dependency)
    เก็บความคืบหน้าใน localStorage ใช้ Web Speech API สำหรับเสียงอ่านและการฟังเสียงพูด */
 (function () {
   'use strict';
@@ -52,7 +52,7 @@
   };
 
   /* ---------------- state ---------------- */
-  var KEY = 'suanpasa.v1';
+  var KEY = 'suanpasa.v1'; /* kept from the app's first name so saved progress carries over */
   function defaults() { return { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: { goal: 20, rate: 0.9, voice: '', free: false, dir: 'en' }, created: Date.now() }; }
   function load() {
     try {
@@ -1049,12 +1049,12 @@
     P = null;
     document.body.dataset.view = v;
     setNav(v === 'lesson' || v === 'check' ? 'home' : v);
-    if (v === 'lesson' && byId[a]) { viewLesson(byId[a]); document.title = byId[a].title + ' | สวนภาษา'; return; }
-    if (v === 'check' && stageById[a]) { viewCheck(stageById[a]); document.title = 'ด่านสอบขั้น ' + (stageById[a].si + 1) + ' | สวนภาษา'; return; }
+    if (v === 'lesson' && byId[a]) { viewLesson(byId[a]); document.title = 'Stage ' + (byId[a].si + 1) + ', Lesson ' + (byId[a].li + 1) + ': ' + byId[a].en + ' | Speakeasy'; return; }
+    if (v === 'check' && stageById[a]) { viewCheck(stageById[a]); document.title = 'Stage ' + (stageById[a].si + 1) + ' test | Speakeasy'; return; }
     if ((v === 'lesson' || v === 'check') && a) { viewHome(); app.insertAdjacentHTML('afterbegin', '<p class="container notice" role="status" style="margin-top: var(--space-lg)">ไม่พบบทเรียนนี้ ลิงก์อาจเก่าหรือพิมพ์ผิด เลือกบทจากเส้นทางด้านล่างได้เลย</p>'); return; }
-    var titles = { review: 'ทวนคำศัพท์', speak: 'ห้องฝึกพูด', words: 'คลังคำ', progress: 'สถิติ' };
-    document.title = (titles[v] ? titles[v] + ' | ' : '') + 'สวนภาษา: ภาษาอังกฤษจากศูนย์ถึงพูดคล่อง';
-    if (v === 'mix') { document.title = 'ฝึกรวม | สวนภาษา'; setNav('home'); startPlay('mix', null); return; }
+    var titles = { review: 'Review', speak: 'Speaking room', words: 'Word bank', progress: 'Progress' };
+    document.title = titles[v] ? titles[v] + ' | Speakeasy' : 'Speakeasy: English from zero to fluent';
+    if (v === 'mix') { document.title = 'Mixed practice | Speakeasy'; setNav('home'); startPlay('mix', null); return; }
     if (v === 'review') return viewReview();
     if (v === 'speak') return viewSpeak();
     if (v === 'words') return viewWords();
@@ -1124,7 +1124,7 @@
       case 'undoimport': if (prevState) { S = sanitize(JSON.parse(prevState)); prevState = null; save(); viewProgress(); setStatus('กลับไปใช้ข้อมูลเดิมแล้ว'); } break;
       case 'export': {
         var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'suanpasa-backup-' + dayKey() + '.json';
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'speakeasy-backup-' + dayKey() + '.json';
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
         setStatus('ดาวน์โหลดไฟล์สำรองแล้ว'); break;
       }
@@ -1147,7 +1147,7 @@
     if (act === 'splevel') { SP.si = +el.value; SP.i = 0; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); var sl = $('#sp-level'); if (sl) sl.focus(); }
     if (act === 'import') {
       var f = el.files && el.files[0]; if (!f) return;
-      if (f.size > 5 * 1024 * 1024) { setStatus('ไฟล์ใหญ่เกินไปสำหรับไฟล์สำรอง เลือกไฟล์ที่ชื่อขึ้นต้นด้วย suanpasa-backup', true); el.value = ''; return; }
+      if (f.size > 5 * 1024 * 1024) { setStatus('ไฟล์ใหญ่เกินไปสำหรับไฟล์สำรอง เลือกไฟล์ที่ชื่อขึ้นต้นด้วย speakeasy-backup', true); el.value = ''; return; }
       var fr = new FileReader();
       fr.onload = function () {
         try {
@@ -1156,7 +1156,7 @@
           prevState = JSON.stringify(S);
           S = sanitize(data); save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว: ผ่าน ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' แต้ม');
           var stt = $('#set-status'); if (stt) stt.insertAdjacentHTML('beforeend', ' <button class="link" type="button" data-act="undoimport">ย้อนกลับเป็นข้อมูลเดิม</button>');
-        } catch (x) { setStatus('ไฟล์นี้ไม่ใช่ไฟล์สำรองของสวนภาษา เลือกไฟล์ที่ชื่อขึ้นต้นด้วย suanpasa-backup', true); }
+        } catch (x) { setStatus('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Speakeasy เลือกไฟล์ที่ชื่อขึ้นต้นด้วย speakeasy-backup', true); }
       };
       fr.onerror = function () { setStatus('อ่านไฟล์ไม่สำเร็จ ลองเลือกไฟล์อีกครั้ง', true); };
       fr.readAsText(f); el.value = '';
