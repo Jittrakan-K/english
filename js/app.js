@@ -48,15 +48,21 @@
     close: '<svg' + SV + '><path d="M6 6l12 12M18 6 6 18"/></svg>',
     check: '<svg' + SV + ' stroke-width="3"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     flag: '<svg' + SV + '><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>',
+    user: '<svg' + SV + '><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>',
     lock: '<svg' + SV + '><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
   };
 
   /* ---------------- state ---------------- */
   var KEY = 'suanpasa.v1'; /* kept from the app's first name so saved progress carries over */
-  function defaults() { return { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: { goal: 20, rate: 0.9, voice: '', free: false, dir: 'en' }, created: Date.now() }; }
+  /* signed in, progress lives in that account's own slot; signed out, in the guest slot (KEY) */
+  var ACC = window.Accounts || null;
+  var ME = ACC ? ACC.session() : null;
+  function slotKey(me) { me = me === undefined ? ME : me; return me ? 'speakeasy.u.' + me.mode + '.' + me.id : KEY; }
+  function readSlot(me) { try { var raw = localStorage.getItem(slotKey(me)); return raw ? sanitize(JSON.parse(raw)) : null; } catch (e) { return null; } }
+  function defaults() { return { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: { goal: 20, rate: 0.9, voice: '', free: false, dir: 'en' }, created: Date.now(), t: 0, r: 0 }; }
   function load() {
     try {
-      var raw = localStorage.getItem(KEY);
+      var raw = localStorage.getItem(slotKey());
       if (!raw) return defaults();
       var s = JSON.parse(raw), d = defaults();
       Object.keys(d).forEach(function (k) { if (s[k] === undefined) s[k] = d[k]; });
@@ -69,7 +75,7 @@
     var d = defaults();
     if (!s || typeof s !== 'object') return d;
     function obj(x) { return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; }
-    var out = { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: d.settings, created: +s.created || d.created };
+    var out = { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: d.settings, created: +s.created || d.created, t: Math.max(0, +s.t || 0), r: Math.max(0, +s.r || 0) };
     Object.keys(obj(s.done)).forEach(function (k) { var v = s.done[k]; if (v && isFinite(+v.best)) out.done[k] = { best: clamp(Math.round(+v.best), 0, 100), at: +v.at || 0 }; });
     Object.keys(obj(s.passed)).forEach(function (k) { if (s.passed[k]) out.passed[k] = true; });
     out.xp = Math.max(0, Math.round(+s.xp) || 0);
@@ -89,7 +95,100 @@
   function fmt(n) { return Number(n || 0).toLocaleString('th-TH'); }
   function fmtBig(n) { n = Number(n || 0); return n >= 100000 ? new Intl.NumberFormat('th-TH', { notation: 'compact', maximumFractionDigits: 1 }).format(n) : fmt(n); }
   var storageOk = true;
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); storageOk = true; } catch (e) { storageOk = false; } }
+  function persist() { try { localStorage.setItem(slotKey(), JSON.stringify(S)); storageOk = true; } catch (e) { storageOk = false; } }
+  function save() { S.t = Date.now(); persist(); queueSync(); }
+  /* two copies of one account (this device and the cloud): keep the newer settings and word
+     schedule, and never lose a passed lesson, a better score or a studied day from either.
+     A reset or an import (r) wipes whatever the other copy did before it. */
+  function mergeState(a, b) {
+    var newer = (b.t || 0) > (a.t || 0) ? b : a, older = newer === a ? b : a;
+    var out = JSON.parse(JSON.stringify(newer));
+    if ((newer.r || 0) >= (older.t || 0) && newer.r) return out;
+    Object.keys(older.done).forEach(function (k) { var o = older.done[k], n = out.done[k]; if (!n || o.best > n.best) out.done[k] = o; });
+    Object.keys(older.passed).forEach(function (k) { out.passed[k] = true; });
+    Object.keys(older.days).forEach(function (k) { out.days[k] = Math.max(out.days[k] || 0, older.days[k]); });
+    Object.keys(older.srs).forEach(function (k) { if (!out.srs[k]) out.srs[k] = older.srs[k]; });
+    out.xp = Math.max(out.xp, older.xp);
+    out.created = Math.min(a.created || Date.now(), b.created || Date.now());
+    return out;
+  }
+  function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+  /* ---------------- cloud sync ---------------- */
+  var SYNC = { state: 'idle', err: '', dirty: false, timer: 0, chain: Promise.resolve(true), at: 0 };
+  function cloudOn() { return !!(ME && ME.mode === 'cloud'); }
+  function queueSync() {
+    if (!cloudOn()) return;
+    SYNC.dirty = true; clearTimeout(SYNC.timer);
+    SYNC.timer = setTimeout(function () { pushNow(); }, 2000);
+    syncShow('wait');
+  }
+  function pushNow(keepalive) {
+    clearTimeout(SYNC.timer);
+    if (!cloudOn()) return Promise.resolve(true);
+    var me = ME;
+    SYNC.chain = SYNC.chain.then(function () {
+      if (me !== ME || !SYNC.dirty) return true;
+      SYNC.dirty = false; syncShow('busy');
+      return ACC.push(S, { keepalive: keepalive }).then(function () { if (me === ME) { SYNC.at = Date.now(); syncShow(SYNC.dirty ? 'wait' : 'ok'); } return true; },
+        function (e) { if (me !== ME) return false; SYNC.dirty = true; syncFail(e); return false; });
+    });
+    return SYNC.chain;
+  }
+  function pullNow() {
+    if (!cloudOn()) return Promise.resolve(true);
+    var me = ME; syncShow('busy');
+    return ACC.pull().then(function (remote) {
+      if (me !== ME) return false;
+      var fresh = ACC.session(); if (fresh && fresh.id === ME.id && fresh.name !== ME.name) { ME.name = fresh.name; chrome(); }
+      if (!remote) { SYNC.dirty = true; return pushNow(); }
+      var r = sanitize(remote), merged = mergeState(S, r), changed = !same(merged, S);
+      S = merged; persist();
+      if (changed) refreshView();
+      if (!same(merged, r)) { SYNC.dirty = true; return pushNow(); }
+      SYNC.at = Date.now(); syncShow('ok'); return true;
+    }, function (e) { if (me === ME) syncFail(e); return false; });
+  }
+  function syncFail(e) {
+    if (e.code === 'expired' || e.code === 'nosession') { leaveAccount('expired'); return; }
+    SYNC.err = e.code; syncShow(e.code === 'network' ? 'off' : 'err');
+  }
+  function syncText() {
+    if (!ME) return '';
+    if (!cloudOn()) return 'บัญชีนี้เก็บอยู่ในเบราว์เซอร์เครื่องนี้';
+    switch (SYNC.state) {
+      case 'wait': return 'มีความคืบหน้าใหม่ กำลังจะซิงก์';
+      case 'busy': return 'กำลังซิงก์กับคลาวด์';
+      case 'ok': return 'ซิงก์แล้ว เวลา ' + new Date(SYNC.at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+      case 'off': return 'ออฟไลน์อยู่ จะซิงก์ให้เองเมื่อกลับมาออนไลน์';
+      case 'err': return SYNC.err === 'rules' ? 'Firebase ไม่ยอมให้บันทึก ตรวจกฎของ Firestore ตามไฟล์ firestore.rules'
+        : SYNC.err === 'nodb' ? 'โปรเจกต์ Firebase ยังไม่มี Firestore Database ต้องสร้างก่อน'
+        : 'ซิงก์ไม่สำเร็จ กดซิงก์ตอนนี้เพื่อลองอีกครั้ง';
+    }
+    return 'เชื่อมกับคลาวด์แล้ว';
+  }
+  function syncShow(state) {
+    SYNC.state = state;
+    $$('[data-sync]').forEach(function (el) { el.textContent = syncText(); if (state === 'err') el.setAttribute('data-err', ''); else el.removeAttribute('data-err'); });
+  }
+  /* re-draw after cloud data arrives, but never in the middle of a lesson, a review or a recording */
+  function refreshView() {
+    chrome();
+    var v = document.body.dataset.view;
+    if (!P && (v === 'home' || v === 'progress' || v === 'words' || v === 'account')) route();
+  }
+  function leaveAccount(why) {
+    var wasCloud = cloudOn(), clean = !SYNC.dirty;
+    if (wasCloud && clean) { try { localStorage.removeItem(slotKey()); } catch (e) {} }
+    ACC.signOut(); ME = null; AV.kind = 'in'; SYNC.dirty = false; SYNC.state = 'idle'; clearTimeout(SYNC.timer);
+    S = sanitize(load());
+    AV.note = why === 'expired' ? 'บัญชีหลุดออกจากระบบ เข้าสู่ระบบใหม่อีกครั้งด้วยชื่อกับ PIN เดิม'
+      : wasCloud && !clean ? 'ออกจากระบบแล้ว ความคืบหน้าล่าสุดยังไม่ได้ขึ้นคลาวด์ จะส่งขึ้นให้เมื่อเข้าบัญชีนี้ในเครื่องนี้ครั้งหน้า'
+      : 'ออกจากระบบแล้ว ตอนนี้กำลังใช้ความคืบหน้าของเครื่องนี้';
+    chrome(); if (!P) route();
+  }
+  window.addEventListener('online', function () { if (cloudOn()) { if (SYNC.dirty) pushNow(); else pullNow(); } });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && SYNC.dirty) pushNow(true); else if (document.visibilityState === 'visible' && cloudOn() && !SYNC.dirty && Date.now() - SYNC.at > 60000) pullNow(); });
 
   function addXP(n) { if (!n) return; S.xp += n; var k = dayKey(); S.days[k] = (S.days[k] || 0) + n; save(); chrome(); }
   function xpToday() { return S.days[dayKey()] || 0; }
@@ -223,6 +322,12 @@
     if (st) {
       var n = streak();
       st.innerHTML = 'ต่อเนื่อง <b class="num">' + n + '</b> วัน<span class="hide-s">&ensp; วันนี้ <b class="num">' + fmt(xpToday()) + '</b>/' + S.settings.goal + ' แต้ม</span>';
+    }
+    var who = $('[data-who]');
+    if (who) {
+      who.innerHTML = I.user + '<span>' + (ME ? esc(ME.name) : 'เข้าสู่ระบบ') + '</span>';
+      who.setAttribute('aria-label', ME ? 'บัญชี ' + ME.name : 'เข้าสู่ระบบหรือสร้างบัญชี');
+      if (ME) who.setAttribute('data-in', ''); else who.removeAttribute('data-in');
     }
     var due = dueCards().length, badge = $('[data-due]');
     if (badge) { badge.hidden = !due; badge.textContent = due > 99 ? '99+' : due; badge.setAttribute('aria-label', 'รอทวน ' + due + ' คำ'); }
@@ -1008,7 +1113,7 @@
       return '<tr><td>ขั้น ' + (si + 1) + ' ' + esc(st.name) + '</td><td class="nw">' + st.cefr + '</td><td class="num">' + ds.length + ' จาก ' + st.lessons.length + '</td><td class="num">' + (avg === null ? 'ยังไม่มี' : avg + '%') + '</td><td>' + (stagePassed(si) ? 'ผ่านแล้ว' : stageOpen(si) ? 'เปิดอยู่' : 'ยังล็อก') + '</td></tr>';
     }).join('');
     render('<div class="view container">' +
-      '<div class="view__head"><h1>สถิติของคุณ</h1><p>ทุกตัวเลขนับจากการเรียนในเบราว์เซอร์เครื่องนี้</p></div>' +
+      '<div class="view__head"><h1>สถิติของคุณ</h1><p>' + (ME ? 'ทุกตัวเลขเป็นของบัญชี ' + esc(ME.name) + (cloudOn() ? ' เข้าจากเครื่องไหนก็เห็นเหมือนกัน' : ' ในเบราว์เซอร์เครื่องนี้') : 'ทุกตัวเลขนับจากการเรียนในเบราว์เซอร์เครื่องนี้') + '</p></div>' +
       '<dl class="stats"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + '<small>วัน</small></dd></div><div><dt>แต้มรวม</dt><dd title="' + fmt(S.xp) + ' แต้ม">' + fmtBig(S.xp) + '</dd></div><div><dt>บทที่ผ่าน</dt><dd>' + totalDone() + '<small>/ ' + LESSONS.length + '</small></dd></div><div><dt>คำในคลัง</dt><dd>' + fmt(keys.length) + '</dd></div><div><dt>จำได้แม่น</dt><dd>' + fmt(strong) + '<small>คำ</small></dd></div></dl>' +
       '<div class="panel-grid"><div>' +
         '<h2 class="section-h">16 สัปดาห์ที่ผ่านมา</h2><div class="heat" role="img" aria-label="ปฏิทินการเรียน เรียนไปแล้ว ' + activeDays + ' วัน">' + cells.join('') + '</div>' +
@@ -1024,7 +1129,7 @@
         '<fieldset class="seg"><legend>การ์ดทวนคำ</legend><input type="radio" name="dir" id="d-en" value="en"' + (S.settings.dir !== 'th' ? ' checked' : '') + ' data-act="setdir"><label for="d-en">อังกฤษ เป็น ไทย</label><input type="radio" name="dir" id="d-th" value="th"' + (S.settings.dir === 'th' ? ' checked' : '') + ' data-act="setdir"><label for="d-th">ไทย เป็น อังกฤษ</label></fieldset>' +
         '<label class="check"><input type="checkbox" name="free" data-act="setfree"' + (S.settings.free ? ' checked' : '') + '><span>เปิดทุกบทเรียน<br><span class="small muted">เลือกเรียนบทไหนก่อนก็ได้ ไม่ต้องเรียงตามลำดับ</span></span></label>' +
         '<hr><h2>ข้อมูลของคุณ</h2>' +
-        '<p class="small muted">ความคืบหน้าอยู่ในเบราว์เซอร์นี้เท่านั้น ดาวน์โหลดไฟล์สำรองไว้เพื่อย้ายไปเครื่องอื่น</p>' +
+        '<p class="small muted">' + (cloudOn() ? 'ความคืบหน้าซิงก์กับบัญชี ' + esc(ME.name) + ' อยู่แล้ว ไฟล์สำรองเอาไว้เก็บอีกชุดหนึ่ง' : ME ? 'บัญชีนี้อยู่ในเบราว์เซอร์นี้เท่านั้น ดาวน์โหลดไฟล์สำรองไว้เพื่อย้ายไปเครื่องอื่น' : 'ความคืบหน้าอยู่ในเบราว์เซอร์นี้เท่านั้น <a href="#/account">สร้างบัญชี</a> ไว้แยกของแต่ละคน หรือดาวน์โหลดไฟล์สำรองไว้ย้ายเครื่อง') + '</p>' +
         '<div class="actions"><button class="btn btn--sm" type="button" data-act="export">ดาวน์โหลดไฟล์สำรอง</button><label class="btn btn--sm file-btn">โหลดไฟล์สำรอง<input type="file" accept="application/json,.json" data-act="import" aria-label="เลือกไฟล์สำรอง"></label></div>' +
         '<div class="actions"><button class="link" type="button" data-act="reset">ล้างความคืบหน้าทั้งหมด</button></div>' +
         '<p class="status" id="set-status" role="status"></p>' +
@@ -1039,6 +1144,96 @@
   }
   function setStatus(msg, err) { var s = $('#set-status'); if (!s) return; s.textContent = msg; if (err) s.setAttribute('data-err', ''); else s.removeAttribute('data-err'); }
 
+  /* ---------------- account ---------------- */
+  var AV = { kind: 'in', name: '', note: '', busy: false };
+  var AUTH_MSG = {
+    noname: 'ใส่ชื่อบัญชีก่อน',
+    longname: 'ชื่อบัญชียาวได้ไม่เกิน 32 ตัว',
+    short: 'PIN หรือรหัสผ่านต้องยาวอย่างน้อย 6 ตัว',
+    mismatch: 'PIN สองช่องไม่ตรงกัน ลองพิมพ์ใหม่',
+    exists: 'ชื่อนี้มีคนใช้แล้ว ถ้าเป็นบัญชีของคุณ เลือกเข้าสู่ระบบแทน',
+    wrong: 'ชื่อบัญชีหรือ PIN ไม่ถูกต้อง',
+    many: 'ลองผิดหลายครั้งเกินไป รอสักครู่แล้วลองใหม่',
+    network: 'เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจเน็ตแล้วลองอีกครั้ง',
+    authoff: 'Firebase ยังไม่เปิดการเข้าสู่ระบบแบบ Email/Password ต้องเปิดใน Authentication ก่อน',
+    badkey: 'apiKey ใน js/cloud-config.js ไม่ถูกต้อง',
+    unsupported: 'เบราว์เซอร์นี้สร้างบัญชีไม่ได้ ต้องเปิดเว็บผ่าน https',
+    storage: 'บันทึกในเบราว์เซอร์ไม่ได้ พื้นที่อาจเต็มหรือเปิดโหมดส่วนตัวอยู่'
+  };
+  function hasProgress(x) { return x.xp > 0 || Object.keys(x.done).length > 0 || Object.keys(x.srs).length > 0; }
+  function acctStatus(msg, err) { var s = $('#acct-status'); if (!s) return; s.textContent = msg; if (err) s.setAttribute('data-err', ''); else s.removeAttribute('data-err'); }
+  function viewAccount() {
+    var lead = ACC && ACC.cloud ? 'ตั้งชื่อบัญชีกับ PIN แล้วเข้าจากเครื่องไหนก็เจอความคืบหน้าเดิม' : 'ตั้งชื่อบัญชีกับ PIN ไว้ แยกความคืบหน้าของแต่ละคนที่ใช้เครื่องนี้';
+    var note = AV.note ? '<p class="notice" role="status">' + esc(AV.note) + '</p>' : '';
+    AV.note = '';
+    if (!ACC) { render('<div class="view container"><div class="view__head"><h1>บัญชีของคุณ</h1><p>โหลดระบบบัญชีไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง</p></div></div>'); return; }
+    if (ME) {
+      render('<div class="view container acct">' +
+        '<div class="view__head"><h1>สวัสดี <span class="acct__name">' + esc(ME.name) + '</span></h1><p>' + (cloudOn() ? 'บัญชีนี้ซิงก์ขึ้นคลาวด์ เปิดเว็บที่เครื่องอื่นแล้วใส่ชื่อกับ PIN เดิม ความคืบหน้าจะตามไปด้วย' : 'บัญชีนี้เก็บอยู่ในเบราว์เซอร์เครื่องนี้ ใส่ชื่อกับ PIN เดิมเมื่อกลับมาเรียน') + '</p></div>' + note +
+        '<div class="acct__card sheet">' +
+          '<dl class="acct__facts"><div><dt>บทที่ผ่าน</dt><dd class="num">' + fmt(totalDone()) + '</dd></div><div><dt>แต้มรวม</dt><dd class="num">' + fmtBig(S.xp) + '</dd></div><div><dt>ต่อเนื่อง</dt><dd class="num">' + streak() + ' วัน</dd></div></dl>' +
+          '<p class="acct__sync" data-sync aria-live="polite">' + esc(syncText()) + '</p>' +
+          '<div class="actions">' + (cloudOn() ? '<button class="btn btn--ink btn--sm" type="button" data-act="syncnow">ซิงก์ตอนนี้</button>' : '') + '<button class="btn btn--sm" type="button" data-act="signout">ออกจากระบบ</button></div>' +
+          '<p class="status" id="acct-status" role="status"></p>' +
+        '</div></div>', { focus: false });
+      if (SYNC.state === 'err') syncShow('err');
+      return;
+    }
+    var up = AV.kind === 'up', carry = up && hasProgress(S);
+    render('<div class="view container acct">' +
+      '<div class="view__head"><h1>บัญชีของคุณ</h1><p>' + lead + '</p></div>' + note +
+      '<form class="acct__card sheet" id="acct-form" novalidate>' +
+        '<fieldset class="seg"><legend>คุณมีบัญชีแล้วหรือยัง</legend>' +
+          '<input type="radio" name="kind" id="k-in" value="in"' + (up ? '' : ' checked') + ' data-act="acctkind"><label for="k-in">เข้าสู่ระบบ</label>' +
+          '<input type="radio" name="kind" id="k-up" value="up"' + (up ? ' checked' : '') + ' data-act="acctkind"><label for="k-up">สร้างบัญชีใหม่</label></fieldset>' +
+        '<div class="field"><label for="acct-name">ชื่อบัญชี</label><input class="input" id="acct-name" name="name" value="' + esc(AV.name) + '" maxlength="' + ACC.maxName + '" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>' +
+        '<div class="field"><label for="acct-pin">PIN หรือรหัสผ่าน</label><input class="input" type="password" id="acct-pin" name="pin" minlength="' + ACC.min + '" autocomplete="' + (up ? 'new-password' : 'current-password') + '" aria-describedby="pin-hint" required>' +
+          '<p class="small muted" id="pin-hint">อย่างน้อย ' + ACC.min + ' ตัว จะใช้ตัวเลขล้วนเป็น PIN ก็ได้</p></div>' +
+        (up ? '<div class="field"><label for="acct-pin2">ใส่ PIN อีกครั้ง</label><input class="input" type="password" id="acct-pin2" name="pin2" autocomplete="new-password" required></div>' : '') +
+        '<label class="check"><input type="checkbox" data-act="pinshow"><span>แสดง PIN</span></label>' +
+        (carry ? '<label class="check"><input type="checkbox" name="carry" checked><span>ย้ายความคืบหน้าในเครื่องนี้เข้าบัญชีใหม่<br><span class="small muted">ผ่านแล้ว ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' แต้ม</span></span></label>' : '') +
+        '<div class="actions"><button class="btn btn--primary" type="submit">' + (up ? 'สร้างบัญชี' : 'เข้าสู่ระบบ') + '</button></div>' +
+        '<p class="status" id="acct-status" role="status"></p>' +
+      '</form>' +
+      (ACC.cloud ? '' : '<p class="acct__aside small muted">ตอนนี้บัญชีอยู่ในเบราว์เซอร์นี้เท่านั้น เมื่อเชื่อม Firebase แล้ว บัญชีจะเข้าได้จากทุกเครื่อง และบัญชีที่สร้างไว้ตอนนี้ย้ายขึ้นคลาวด์ได้ด้วยชื่อกับ PIN เดิม</p>') +
+      '</div>', { focus: false });
+  }
+  function submitAccount(form) {
+    if (AV.busy) return;
+    var kind = AV.kind, name = form.name.value, pin = form.pin.value;
+    AV.name = name;
+    if (kind === 'up' && form.pin2 && form.pin2.value !== pin) { acctStatus(AUTH_MSG.mismatch, true); form.pin2.focus(); return; }
+    var carry = kind === 'up' && form.carry && form.carry.checked;
+    var guest = JSON.parse(JSON.stringify(S));
+    var btn = form.querySelector('[type="submit"]');
+    AV.busy = true; btn.disabled = true; acctStatus(kind === 'up' ? 'กำลังสร้างบัญชี' : 'กำลังเข้าสู่ระบบ');
+    (kind === 'up' ? ACC.signUp(name, pin) : ACC.signIn(name, pin)).then(function (me) {
+      ME = me; SYNC.dirty = false; SYNC.state = 'idle';
+      var mine = readSlot();
+      if (kind === 'up') { S = carry ? sanitize(guest) : defaults(); S.t = Date.now(); if (mine) S = mergeState(S, mine); }
+      else S = mine || defaults();
+      /* an account first made on this browser before Firebase was connected moves up with it */
+      var lift = ACC.cloud ? ACC.localMatch(name, pin).then(function (key) {
+        var old = key && readSlot({ mode: 'local', id: key });
+        if (old) S = mergeState(S, old);
+      }) : Promise.resolve();
+      return lift.then(function () {
+        persist();
+        if (cloudOn()) { SYNC.dirty = kind === 'up'; return kind === 'up' ? pushNow() : pullNow(); }
+      });
+    }).then(function () {
+      AV.busy = false; AV.name = '';
+      AV.note = kind === 'up' ? 'สร้างบัญชี ' + ME.name + ' แล้ว จำชื่อกับ PIN ไว้ใช้เข้าครั้งหน้า' : 'ยินดีต้อนรับกลับ ' + ME.name;
+      chrome(); viewAccount();
+    }, function (e) {
+      AV.busy = false; if (btn.isConnected) btn.disabled = false;
+      if (ME && !e.code) { chrome(); viewAccount(); return; }
+      acctStatus(AUTH_MSG[e.code] || 'มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง', true);
+      var f = e.code === 'wrong' || e.code === 'short' ? form.pin : e.code === 'exists' || e.code === 'noname' || e.code === 'longname' ? form.name : null;
+      if (f && f.isConnected) f.focus();
+    });
+  }
+
   /* ---------------- router ---------------- */
   function route() {
     hush(); if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
@@ -1052,13 +1247,14 @@
     if (v === 'lesson' && byId[a]) { viewLesson(byId[a]); document.title = 'Stage ' + (byId[a].si + 1) + ', Lesson ' + (byId[a].li + 1) + ': ' + byId[a].en + ' | Speakeasy'; return; }
     if (v === 'check' && stageById[a]) { viewCheck(stageById[a]); document.title = 'Stage ' + (stageById[a].si + 1) + ' test | Speakeasy'; return; }
     if ((v === 'lesson' || v === 'check') && a) { viewHome(); app.insertAdjacentHTML('afterbegin', '<p class="container notice" role="status" style="margin-top: var(--space-lg)">ไม่พบบทเรียนนี้ ลิงก์อาจเก่าหรือพิมพ์ผิด เลือกบทจากเส้นทางด้านล่างได้เลย</p>'); return; }
-    var titles = { review: 'Review', speak: 'Speaking room', words: 'Word bank', progress: 'Progress' };
+    var titles = { review: 'Review', speak: 'Speaking room', words: 'Word bank', progress: 'Progress', account: 'Account' };
     document.title = titles[v] ? titles[v] + ' | Speakeasy' : 'Speakeasy: English from zero to fluent';
     if (v === 'mix') { document.title = 'Mixed practice | Speakeasy'; setNav('home'); startPlay('mix', null); return; }
     if (v === 'review') return viewReview();
     if (v === 'speak') return viewSpeak();
     if (v === 'words') return viewWords();
     if (v === 'progress') return viewProgress();
+    if (v === 'account') return viewAccount();
     document.body.dataset.view = 'home';
     viewHome();
   }
@@ -1121,7 +1317,9 @@
       case 'rolehard': SP.hard = true; SP.step = -1; viewSpeak(); break;
       case 'rolemode': SP.hard = el.getAttribute('data-h') === '1'; SP.choices = null; SP.note = ''; viewSpeak(); break;
       case 'wst': WV.st = el.getAttribute('data-st'); $$('[data-act="wst"]').forEach(function (b) { b.setAttribute('aria-pressed', b === el); }); wordsList(); break;
-      case 'undoimport': if (prevState) { S = sanitize(JSON.parse(prevState)); prevState = null; save(); viewProgress(); setStatus('กลับไปใช้ข้อมูลเดิมแล้ว'); } break;
+      case 'syncnow': SYNC.dirty = true; pushNow().then(function (ok) { if (ok) pullNow(); }); break;
+      case 'signout': el.disabled = true; acctStatus('กำลังออกจากระบบ'); pushNow().then(function () { leaveAccount(); }); break;
+      case 'undoimport': if (prevState) { S = sanitize(JSON.parse(prevState)); S.r = Date.now(); prevState = null; save(); viewProgress(); setStatus('กลับไปใช้ข้อมูลเดิมแล้ว'); } break;
       case 'export': {
         var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
         var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'speakeasy-backup-' + dayKey() + '.json';
@@ -1129,7 +1327,7 @@
         setStatus('ดาวน์โหลดไฟล์สำรองแล้ว'); break;
       }
       case 'reset':
-        if (Date.now() - resetArmed < 5000) { try { localStorage.removeItem(KEY); } catch (x) {} S = defaults(); save(); resetArmed = 0; viewProgress(); setStatus('ล้างความคืบหน้าแล้ว เริ่มใหม่ได้เลย'); }
+        if (Date.now() - resetArmed < 5000) { try { localStorage.removeItem(slotKey()); } catch (x) {} S = defaults(); S.r = Date.now(); save(); resetArmed = 0; viewProgress(); setStatus('ล้างความคืบหน้าแล้ว เริ่มใหม่ได้เลย'); }
         else { resetArmed = Date.now(); el.textContent = 'กดอีกครั้งภายใน 5 วินาทีเพื่อยืนยัน'; setTimeout(function () { if (el.isConnected) el.textContent = 'ล้างความคืบหน้าทั้งหมด'; }, 5000); }
         break;
     }
@@ -1137,6 +1335,8 @@
   document.addEventListener('change', function (e) {
     var el = e.target, act = el.getAttribute && el.getAttribute('data-act');
     if (!act) return;
+    if (act === 'acctkind') { var nm = $('#acct-name'); if (nm) AV.name = nm.value; AV.kind = el.value; viewAccount(); var k = $('#k-' + el.value); if (k) k.focus(); return; }
+    if (act === 'pinshow') { $$('#acct-pin, #acct-pin2').forEach(function (i) { i.type = el.checked ? 'text' : 'password'; }); return; }
     if (act === 'setgoal') { S.settings.goal = +el.value; save(); chrome(); setStatus('ตั้งเป้าวันละ ' + el.value + ' แต้มแล้ว'); }
     if (act === 'setvoice') { S.settings.voice = el.value; save(); say('This is my voice.'); }
     if (act === 'setdir') { S.settings.dir = el.value; save(); setStatus('บันทึกแล้ว'); }
@@ -1154,7 +1354,7 @@
           var data = JSON.parse(fr.result);
           if (!data || typeof data !== 'object' || !data.done || !data.srs) throw new Error('shape');
           prevState = JSON.stringify(S);
-          S = sanitize(data); save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว: ผ่าน ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' แต้ม');
+          S = sanitize(data); S.r = Date.now(); save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว: ผ่าน ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' แต้ม');
           var stt = $('#set-status'); if (stt) stt.insertAdjacentHTML('beforeend', ' <button class="link" type="button" data-act="undoimport">ย้อนกลับเป็นข้อมูลเดิม</button>');
         } catch (x) { setStatus('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Speakeasy เลือกไฟล์ที่ชื่อขึ้นต้นด้วย speakeasy-backup', true); }
       };
@@ -1189,8 +1389,13 @@
       else if (!R.shown && e.key === ' ' && tag === 'button') { /* native button press */ }
     }
   });
+  document.addEventListener('submit', function (e) { if (e.target.id === 'acct-form') { e.preventDefault(); submitAccount(e.target); } });
   window.addEventListener('hashchange', route);
-  window.addEventListener('storage', function (e) { if (e.key === KEY) { S = load(); chrome(); } });
+  window.addEventListener('storage', function (e) {
+    if (e.key === 'speakeasy.session' && ACC) { ME = ACC.session(); S = sanitize(load()); chrome(); if (!P) route(); }
+    else if (e.key === slotKey()) { S = sanitize(load()); chrome(); }
+  });
 
   route();
+  if (cloudOn()) pullNow();
 })();
