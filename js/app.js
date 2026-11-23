@@ -182,7 +182,7 @@
     if (wasCloud && clean) { try { localStorage.removeItem(slotKey()); } catch (e) {} }
     ACC.signOut(); ME = null; AV.kind = 'in'; SYNC.dirty = false; SYNC.state = 'idle'; clearTimeout(SYNC.timer);
     S = sanitize(load());
-    AV.note = why === 'expired' ? 'บัญชีหลุดออกจากระบบ เข้าสู่ระบบใหม่อีกครั้งด้วยUsername กับรหัสผ่านเดิม'
+    AV.note = why === 'expired' ? 'บัญชีหลุดออกจากระบบ เข้าสู่ระบบใหม่อีกครั้งด้วย Username กับรหัสผ่านเดิม'
       : wasCloud && !clean ? 'ออกจากระบบแล้ว ความคืบหน้าล่าสุดยังไม่ได้ขึ้นคลาวด์ จะส่งขึ้นให้เมื่อเข้าบัญชีนี้ในเครื่องนี้ครั้งหน้า'
       : 'ออกจากระบบแล้ว ตอนนี้กำลังใช้ความคืบหน้าของเครื่องนี้';
     chrome(); if (!P) route();
@@ -1169,7 +1169,7 @@
     if (!ACC) { render('<div class="view container"><div class="view__head"><h1>บัญชีของคุณ</h1><p>โหลดระบบบัญชีไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง</p></div></div>'); return; }
     if (ME) {
       render('<div class="view container acct">' +
-        '<div class="view__head"><h1>สวัสดี <span class="acct__name">' + esc(ME.name) + '</span></h1><p>' + (cloudOn() ? 'บัญชีนี้ซิงก์ขึ้นคลาวด์ เปิดเว็บที่เครื่องอื่นแล้วใส่Username กับรหัสผ่านเดิม ความคืบหน้าจะตามไปด้วย' : 'บัญชีนี้เก็บอยู่ในเบราว์เซอร์เครื่องนี้ ใส่Username กับรหัสผ่านเดิมเมื่อกลับมาเรียน') + '</p></div>' + note +
+        '<div class="view__head"><h1>สวัสดี <span class="acct__name">' + esc(ME.name) + '</span></h1><p>' + (cloudOn() ? 'บัญชีนี้ซิงก์ขึ้นคลาวด์ เปิดเว็บที่เครื่องอื่นแล้วใส่ Username กับรหัสผ่านเดิม ความคืบหน้าจะตามไปด้วย' : 'บัญชีนี้เก็บอยู่ในเบราว์เซอร์เครื่องนี้ ใส่ Username กับรหัสผ่านเดิมเมื่อกลับมาเรียน') + '</p></div>' + note +
         '<div class="acct__card sheet">' +
           '<dl class="acct__facts"><div><dt>บทที่ผ่าน</dt><dd class="num">' + fmt(totalDone()) + '</dd></div><div><dt>แต้มรวม</dt><dd class="num">' + fmtBig(S.xp) + '</dd></div><div><dt>ต่อเนื่อง</dt><dd class="num">' + streak() + ' วัน</dd></div></dl>' +
           '<p class="acct__sync" data-sync aria-live="polite">' + esc(syncText()) + '</p>' +
@@ -1195,7 +1195,7 @@
         '<div class="actions"><button class="btn btn--primary" type="submit">' + (up ? 'สร้างบัญชี' : 'เข้าสู่ระบบ') + '</button></div>' +
         '<p class="status" id="acct-status" role="status"></p>' +
       '</form>' +
-      (ACC.cloud ? '' : '<p class="acct__aside small muted">ตอนนี้บัญชีอยู่ในเบราว์เซอร์นี้เท่านั้น เมื่อเชื่อม Firebase แล้ว บัญชีจะเข้าได้จากทุกเครื่อง และบัญชีที่สร้างไว้ตอนนี้ย้ายขึ้นคลาวด์ได้ด้วยUsername กับรหัสผ่านเดิม</p>') +
+      (ACC.cloud ? '' : '<p class="acct__aside small muted">ตอนนี้บัญชีอยู่ในเบราว์เซอร์นี้เท่านั้น เมื่อเชื่อม Firebase แล้ว บัญชีจะเข้าได้จากทุกเครื่อง และบัญชีที่สร้างไว้ตอนนี้ย้ายขึ้นคลาวด์ได้ด้วย Username กับรหัสผ่านเดิม</p>') +
       '</div>', { focus: false });
   }
   function submitAccount(form) {
