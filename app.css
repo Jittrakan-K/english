@@ -278,7 +278,12 @@ body[data-mode="play"] .bar, body[data-mode="play"] .foot { display: none; }
 button.tile { display: inline-flex; align-items: center; min-height: 48px; padding: 0 var(--space-md); border: var(--cut-s) solid var(--color-white); border-radius: var(--radius-pill); font: 700 var(--text-lg)/1 var(--font-body); color: var(--color-ink); background: var(--tc, var(--color-white)); box-shadow: var(--shadow-small); cursor: pointer; rotate: 0deg; }
 button.tile:hover { translate: 0 -2px; rotate: -2deg; }
 button.tile:active { translate: 2px 3px; box-shadow: var(--shadow-press); }
-button.tile:disabled { visibility: hidden; }
+/* a word moved into the answer line leaves an empty slot in the bank; after checking, the answer line stays readable */
+.tiles__bank .tile[data-used] { visibility: hidden; }
+.tiles__line .tile:disabled { opacity: 1; cursor: default; }
+.tiles__bank .tile:disabled:not([data-used]) { opacity: 0.45; }
+.tiles__line[data-mark="right"] { border-bottom-color: var(--color-success); border-bottom-style: solid; }
+.tiles__line[data-mark="wrong"] { border-bottom-color: var(--color-error); border-bottom-style: solid; }
 .tiles__line .tile:nth-child(4n+1) { --tc: var(--color-pink); rotate: -2deg; }
 .tiles__line .tile:nth-child(4n+2) { --tc: var(--color-peri); rotate: 1.5deg; }
 .tiles__line .tile:nth-child(4n+3) { --tc: var(--color-butter); rotate: -1deg; }

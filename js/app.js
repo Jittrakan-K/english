@@ -898,6 +898,17 @@
     }
     return false;
   }
+  /* please may sit at the end, at the start, or straight after "Can you" / "Could I":
+     "Can you please say it again?" is as right as "Can you say it again, please?" */
+  function movedPlease(given, ans) {
+    var g = given.map(function (t) { return t.toLowerCase(); }), a = ans.map(function (t) { return t.toLowerCase(); });
+    var gi = g.indexOf('please'), ai = a.indexOf('please');
+    if (gi === -1 || ai === -1 || g.lastIndexOf('please') !== gi || a.lastIndexOf('please') !== ai || g.length !== a.length) return false;
+    var g2 = g.slice(0, gi).concat(g.slice(gi + 1)), a2 = a.slice(0, ai).concat(a.slice(ai + 1));
+    if (g2.join(' ') !== a2.join(' ')) return false;
+    var afterAsk = /^(can|could|would|will)$/.test(a2[0]) && /^(you|i|we)$/.test(a2[1]);
+    return gi === 0 || gi === g.length - 1 || (afterAsk && gi === 2);
+  }
   function chooseOpt(btn) {
     if (!P || P.phase !== 'answer') return;
     var it = P.queue[0], v = btn.getAttribute('data-v'), right = v === it.ans;
@@ -910,8 +921,8 @@
   function tileMove(btn, toLine) {
     if (!P || P.phase !== 'answer') return;
     var k = +btn.getAttribute('data-k');
-    if (toLine) { P.line.push(k); btn.disabled = true; }
-    else { P.line.splice(P.line.indexOf(k), 1); var src = $('.tiles__bank [data-k="' + k + '"]'); if (src) { src.disabled = false; src.focus({ preventScroll: true }); } }
+    if (toLine) { P.line.push(k); btn.disabled = true; btn.setAttribute('data-used', ''); }
+    else { P.line.splice(P.line.indexOf(k), 1); var src = $('.tiles__bank [data-k="' + k + '"]'); if (src) { src.disabled = false; src.removeAttribute('data-used'); src.focus({ preventScroll: true }); } }
     var it = P.queue[0];
     $('#line').innerHTML = P.line.map(function (i) { return '<button class="tile" type="button" data-act="untile" data-k="' + i + '" lang="en" aria-label="เอา ' + esc(it.bank[i]) + ' ออก">' + esc(it.bank[i]) + '</button>'; }).join('');
     var c = $('#check'); if (c) c.disabled = !P.line.length;
@@ -923,10 +934,11 @@
     else if (it.t === 'type') { var inp = $('#answer'); given = inp ? inp.value : ''; if (!given.trim()) { inp.focus(); return; } }
     var bare = function (x) { return norm(x).replace(/'/g, ''); };
     var right = norm(given) === norm(it.ans);
-    if (!right && it.t === 'tiles') right = movedTime(tokensOf(given), tokensOf(it.ans));
+    if (!right && !it.listen && (it.t === 'tiles' || it.t === 'type')) right = movedTime(tokensOf(given), tokensOf(it.ans)) || movedPlease(tokensOf(given), tokensOf(it.ans));
     if (!right && it.alts) right = it.alts.some(function (a) { return bare(a) === bare(given); });
     if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
     if (!right && it.t === 'type') right = norm(given).replace(/'/g, '') === norm(it.ans).replace(/'/g, '');
+    var line = $('#line'); if (line) line.setAttribute('data-mark', right ? 'right' : 'wrong');
     settle(right);
   }
   function micPress(btn) {
