@@ -1,4 +1,4 @@
-/* Speakeasy: accounts. An account is a name plus a PIN or password of 6 or more characters.
+/* Speakeasy: accounts. An account is a username plus a password of 6 or more characters.
    With an apiKey in js/cloud-config.js, accounts live in Firebase (Authentication for the
    name and PIN, Firestore for the progress), called over REST so no SDK is loaded.
    Without one, accounts live in this browser only. Exposes window.Accounts. */

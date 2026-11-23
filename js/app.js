@@ -182,7 +182,7 @@
     if (wasCloud && clean) { try { localStorage.removeItem(slotKey()); } catch (e) {} }
     ACC.signOut(); ME = null; AV.kind = 'in'; SYNC.dirty = false; SYNC.state = 'idle'; clearTimeout(SYNC.timer);
     S = sanitize(load());
-    AV.note = why === 'expired' ? 'บัญชีหลุดออกจากระบบ เข้าสู่ระบบใหม่อีกครั้งด้วยชื่อกับ PIN เดิม'
+    AV.note = why === 'expired' ? 'บัญชีหลุดออกจากระบบ เข้าสู่ระบบใหม่อีกครั้งด้วยUsername กับรหัสผ่านเดิม'
       : wasCloud && !clean ? 'ออกจากระบบแล้ว ความคืบหน้าล่าสุดยังไม่ได้ขึ้นคลาวด์ จะส่งขึ้นให้เมื่อเข้าบัญชีนี้ในเครื่องนี้ครั้งหน้า'
       : 'ออกจากระบบแล้ว ตอนนี้กำลังใช้ความคืบหน้าของเครื่องนี้';
     chrome(); if (!P) route();
@@ -1147,15 +1147,15 @@
   /* ---------------- account ---------------- */
   var AV = { kind: 'in', name: '', note: '', busy: false };
   var AUTH_MSG = {
-    noname: 'ใส่ชื่อบัญชีก่อน',
-    longname: 'ชื่อบัญชียาวได้ไม่เกิน 32 ตัว',
-    short: 'PIN หรือรหัสผ่านต้องยาวอย่างน้อย 6 ตัว',
-    mismatch: 'PIN สองช่องไม่ตรงกัน ลองพิมพ์ใหม่',
-    exists: 'ชื่อนี้มีคนใช้แล้ว ถ้าเป็นบัญชีของคุณ เลือกเข้าสู่ระบบแทน',
-    wrong: 'ชื่อบัญชีหรือ PIN ไม่ถูกต้อง',
+    noname: 'ใส่ Username ก่อน',
+    longname: 'Username ยาวได้ไม่เกิน 32 ตัว',
+    short: 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัว',
+    mismatch: 'รหัสผ่านสองช่องไม่ตรงกัน ลองพิมพ์ใหม่',
+    exists: 'Username นี้มีคนใช้แล้ว ถ้าเป็นบัญชีของคุณ เลือกเข้าสู่ระบบแทน',
+    wrong: 'Username หรือรหัสผ่านไม่ถูกต้อง',
     many: 'ลองผิดหลายครั้งเกินไป รอสักครู่แล้วลองใหม่',
     network: 'เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจเน็ตแล้วลองอีกครั้ง',
-    authoff: 'Firebase ยังไม่เปิดการเข้าสู่ระบบแบบ Email/Password ต้องเปิดใน Authentication ก่อน',
+    authoff: 'Firebase ยังไม่เปิดตัวเลือก Email/Password ใน Authentication (ผู้ใช้ไม่ต้องมีอีเมล แค่ระบบต้องเปิดตัวเลือกนี้)',
     badkey: 'apiKey ใน js/cloud-config.js ไม่ถูกต้อง',
     unsupported: 'เบราว์เซอร์นี้สร้างบัญชีไม่ได้ ต้องเปิดเว็บผ่าน https',
     storage: 'บันทึกในเบราว์เซอร์ไม่ได้ พื้นที่อาจเต็มหรือเปิดโหมดส่วนตัวอยู่'
@@ -1163,13 +1163,13 @@
   function hasProgress(x) { return x.xp > 0 || Object.keys(x.done).length > 0 || Object.keys(x.srs).length > 0; }
   function acctStatus(msg, err) { var s = $('#acct-status'); if (!s) return; s.textContent = msg; if (err) s.setAttribute('data-err', ''); else s.removeAttribute('data-err'); }
   function viewAccount() {
-    var lead = ACC && ACC.cloud ? 'ตั้งชื่อบัญชีกับ PIN แล้วเข้าจากเครื่องไหนก็เจอความคืบหน้าเดิม' : 'ตั้งชื่อบัญชีกับ PIN ไว้ แยกความคืบหน้าของแต่ละคนที่ใช้เครื่องนี้';
+    var lead = ACC && ACC.cloud ? 'ตั้งUsername กับรหัสผ่าน แล้วเข้าจากเครื่องไหนก็เจอความคืบหน้าเดิม' : 'ตั้งUsername กับรหัสผ่านไว้ แยกความคืบหน้าของแต่ละคนที่ใช้เครื่องนี้';
     var note = AV.note ? '<p class="notice" role="status">' + esc(AV.note) + '</p>' : '';
     AV.note = '';
     if (!ACC) { render('<div class="view container"><div class="view__head"><h1>บัญชีของคุณ</h1><p>โหลดระบบบัญชีไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง</p></div></div>'); return; }
     if (ME) {
       render('<div class="view container acct">' +
-        '<div class="view__head"><h1>สวัสดี <span class="acct__name">' + esc(ME.name) + '</span></h1><p>' + (cloudOn() ? 'บัญชีนี้ซิงก์ขึ้นคลาวด์ เปิดเว็บที่เครื่องอื่นแล้วใส่ชื่อกับ PIN เดิม ความคืบหน้าจะตามไปด้วย' : 'บัญชีนี้เก็บอยู่ในเบราว์เซอร์เครื่องนี้ ใส่ชื่อกับ PIN เดิมเมื่อกลับมาเรียน') + '</p></div>' + note +
+        '<div class="view__head"><h1>สวัสดี <span class="acct__name">' + esc(ME.name) + '</span></h1><p>' + (cloudOn() ? 'บัญชีนี้ซิงก์ขึ้นคลาวด์ เปิดเว็บที่เครื่องอื่นแล้วใส่Username กับรหัสผ่านเดิม ความคืบหน้าจะตามไปด้วย' : 'บัญชีนี้เก็บอยู่ในเบราว์เซอร์เครื่องนี้ ใส่Username กับรหัสผ่านเดิมเมื่อกลับมาเรียน') + '</p></div>' + note +
         '<div class="acct__card sheet">' +
           '<dl class="acct__facts"><div><dt>บทที่ผ่าน</dt><dd class="num">' + fmt(totalDone()) + '</dd></div><div><dt>แต้มรวม</dt><dd class="num">' + fmtBig(S.xp) + '</dd></div><div><dt>ต่อเนื่อง</dt><dd class="num">' + streak() + ' วัน</dd></div></dl>' +
           '<p class="acct__sync" data-sync aria-live="polite">' + esc(syncText()) + '</p>' +
@@ -1186,16 +1186,16 @@
         '<fieldset class="seg"><legend>คุณมีบัญชีแล้วหรือยัง</legend>' +
           '<input type="radio" name="kind" id="k-in" value="in"' + (up ? '' : ' checked') + ' data-act="acctkind"><label for="k-in">เข้าสู่ระบบ</label>' +
           '<input type="radio" name="kind" id="k-up" value="up"' + (up ? ' checked' : '') + ' data-act="acctkind"><label for="k-up">สร้างบัญชีใหม่</label></fieldset>' +
-        '<div class="field"><label for="acct-name">ชื่อบัญชี</label><input class="input" id="acct-name" name="name" value="' + esc(AV.name) + '" maxlength="' + ACC.maxName + '" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>' +
-        '<div class="field"><label for="acct-pin">PIN หรือรหัสผ่าน</label><input class="input" type="password" id="acct-pin" name="pin" minlength="' + ACC.min + '" autocomplete="' + (up ? 'new-password' : 'current-password') + '" aria-describedby="pin-hint" required>' +
-          '<p class="small muted" id="pin-hint">อย่างน้อย ' + ACC.min + ' ตัว จะใช้ตัวเลขล้วนเป็น PIN ก็ได้</p></div>' +
-        (up ? '<div class="field"><label for="acct-pin2">ใส่ PIN อีกครั้ง</label><input class="input" type="password" id="acct-pin2" name="pin2" autocomplete="new-password" required></div>' : '') +
-        '<label class="check"><input type="checkbox" data-act="pinshow"><span>แสดง PIN</span></label>' +
+        '<div class="field"><label for="acct-name">ชื่อผู้ใช้ (Username)</label><input class="input" id="acct-name" name="name" value="' + esc(AV.name) + '" maxlength="' + ACC.maxName + '" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>' +
+        '<div class="field"><label for="acct-pin">รหัสผ่าน (Password)</label><input class="input" type="password" id="acct-pin" name="pin" minlength="' + ACC.min + '" autocomplete="' + (up ? 'new-password' : 'current-password') + '" aria-describedby="pin-hint" required>' +
+          '<p class="small muted" id="pin-hint">อย่างน้อย ' + ACC.min + ' ตัว ใช้ตัวเลข ตัวอักษร หรือผสมกันก็ได้</p></div>' +
+        (up ? '<div class="field"><label for="acct-pin2">ใส่รหัสผ่านอีกครั้ง</label><input class="input" type="password" id="acct-pin2" name="pin2" autocomplete="new-password" required></div>' : '') +
+        '<label class="check"><input type="checkbox" data-act="pinshow"><span>แสดงรหัสผ่าน</span></label>' +
         (carry ? '<label class="check"><input type="checkbox" name="carry" checked><span>ย้ายความคืบหน้าในเครื่องนี้เข้าบัญชีใหม่<br><span class="small muted">ผ่านแล้ว ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' แต้ม</span></span></label>' : '') +
         '<div class="actions"><button class="btn btn--primary" type="submit">' + (up ? 'สร้างบัญชี' : 'เข้าสู่ระบบ') + '</button></div>' +
         '<p class="status" id="acct-status" role="status"></p>' +
       '</form>' +
-      (ACC.cloud ? '' : '<p class="acct__aside small muted">ตอนนี้บัญชีอยู่ในเบราว์เซอร์นี้เท่านั้น เมื่อเชื่อม Firebase แล้ว บัญชีจะเข้าได้จากทุกเครื่อง และบัญชีที่สร้างไว้ตอนนี้ย้ายขึ้นคลาวด์ได้ด้วยชื่อกับ PIN เดิม</p>') +
+      (ACC.cloud ? '' : '<p class="acct__aside small muted">ตอนนี้บัญชีอยู่ในเบราว์เซอร์นี้เท่านั้น เมื่อเชื่อม Firebase แล้ว บัญชีจะเข้าได้จากทุกเครื่อง และบัญชีที่สร้างไว้ตอนนี้ย้ายขึ้นคลาวด์ได้ด้วยUsername กับรหัสผ่านเดิม</p>') +
       '</div>', { focus: false });
   }
   function submitAccount(form) {
@@ -1223,7 +1223,7 @@
       });
     }).then(function () {
       AV.busy = false; AV.name = '';
-      AV.note = kind === 'up' ? 'สร้างบัญชี ' + ME.name + ' แล้ว จำชื่อกับ PIN ไว้ใช้เข้าครั้งหน้า' : 'ยินดีต้อนรับกลับ ' + ME.name;
+      AV.note = kind === 'up' ? 'สร้างบัญชี ' + ME.name + ' แล้ว จำ Username กับรหัสผ่านไว้ใช้เข้าครั้งหน้า' : 'ยินดีต้อนรับกลับ ' + ME.name;
       chrome(); viewAccount();
     }, function (e) {
       AV.busy = false; if (btn.isConnected) btn.disabled = false;
