@@ -1163,7 +1163,7 @@
   function hasProgress(x) { return x.xp > 0 || Object.keys(x.done).length > 0 || Object.keys(x.srs).length > 0; }
   function acctStatus(msg, err) { var s = $('#acct-status'); if (!s) return; s.textContent = msg; if (err) s.setAttribute('data-err', ''); else s.removeAttribute('data-err'); }
   function viewAccount() {
-    var lead = ACC && ACC.cloud ? 'ตั้งUsername กับรหัสผ่าน แล้วเข้าจากเครื่องไหนก็เจอความคืบหน้าเดิม' : 'ตั้งUsername กับรหัสผ่านไว้ แยกความคืบหน้าของแต่ละคนที่ใช้เครื่องนี้';
+    var lead = ACC && ACC.cloud ? 'ตั้ง Username กับรหัสผ่าน แล้วเข้าจากเครื่องไหนก็เจอความคืบหน้าเดิม' : 'ตั้ง Username กับรหัสผ่านไว้ แยกความคืบหน้าของแต่ละคนที่ใช้เครื่องนี้';
     var note = AV.note ? '<p class="notice" role="status">' + esc(AV.note) + '</p>' : '';
     AV.note = '';
     if (!ACC) { render('<div class="view container"><div class="view__head"><h1>บัญชีของคุณ</h1><p>โหลดระบบบัญชีไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง</p></div></div>'); return; }
