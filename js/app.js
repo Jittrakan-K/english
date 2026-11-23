@@ -320,16 +320,54 @@
     return 'ฟังเสียงพูดไม่สำเร็จ ลองกดพูดอีกครั้ง';
   }
   /* compare what was heard with the target, word by word (longest common subsequence) */
+  /* speech recognition writes "I am 20 years old", "081", "9 o'clock", "10%", "$200"; the course writes
+     numbers as words. Spell numbers out before comparing so 20 and twenty count as the same word. */
+  var ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split(' ');
+  var TENS = ' ten twenty thirty forty fifty sixty seventy eighty ninety'.split(' ');
+  function numWords(n, useA) {
+    if (n < 20) return ONES[n];
+    if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : '');
+    var steps = [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand'], [100, 'hundred']];
+    for (var i = 0; i < steps.length; i++) {
+      var size = steps[i][0];
+      if (n >= size) {
+        var q = Math.floor(n / size), r = n % size;
+        return (q === 1 && useA ? 'a' : numWords(q)) + ' ' + steps[i][1] + (r ? ' ' + numWords(r) : '');
+      }
+    }
+    return String(n);
+  }
+  function ordWords(n) {
+    var w = numWords(n), cut = w.split(/([ -])/), last = cut.pop();
+    var irr = { one: 'first', two: 'second', three: 'third', five: 'fifth', eight: 'eighth', nine: 'ninth', twelve: 'twelfth' };
+    last = irr[last] || (/y$/.test(last) ? last.replace(/y$/, 'ieth') : last + 'th');
+    return cut.join('') + last;
+  }
+  function digitWords(d) { return d.split('').map(function (c) { return ONES[+c]; }).join(' '); }
+  function spoken(text, useA) {
+    return String(text || '')
+      .replace(/(\d),(?=\d{3}\b)/g, '$1')
+      .replace(/\b(\d{1,2}):(\d{2})\b/g, function (m, h, mm) { h = +h; return numWords(h) + (+mm === 0 ? " o'clock" : ' ' + (mm[0] === '0' ? 'oh ' + ONES[+mm[1]] : numWords(+mm))); })
+      .replace(/\$\s?(\d+(?:\.\d+)?)/g, function (m, n) { return n + (n === '1' ? ' dollar' : ' dollars'); })
+      .replace(/฿\s?(\d+)/g, '$1 baht')
+      .replace(/(\d)\s?%/g, '$1 percent')
+      .replace(/\b(\d+)(st|nd|rd|th)\b/gi, function (m, n) { return ordWords(+n); })
+      .replace(/\b(\d+)\.(\d+)\b/g, function (m, a, b) { return numWords(+a, useA) + ' point ' + digitWords(b); })
+      .replace(/\b\d+\b/g, function (d) { return (d.length > 1 && d[0] === '0') || d.length > 9 ? digitWords(d) : numWords(+d, useA); })
+      .replace(/&/g, ' and ');
+  }
   function compare(target, heardList) {
     var t = tokensOf(target).map(norm), best = null;
-    (heardList.length ? heardList : ['']).forEach(function (heard) {
+    var heardAll = [];
+    (heardList.length ? heardList : ['']).forEach(function (h) { heardAll.push(h, spoken(h), spoken(h, true)); });
+    heardAll.forEach(function (heard, hi) {
       var h = tokensOf(heard).map(norm), m = t.length, n = h.length, L = [];
       for (var i = 0; i <= m; i++) { L.push(new Array(n + 1).fill(0)); }
       for (i = 1; i <= m; i++) for (var j = 1; j <= n; j++) L[i][j] = t[i - 1] === h[j - 1] ? L[i - 1][j - 1] + 1 : Math.max(L[i - 1][j], L[i][j - 1]);
       var ok = new Array(m).fill(false); i = m; j = n;
       while (i > 0 && j > 0) { if (t[i - 1] === h[j - 1]) { ok[i - 1] = true; i--; j--; } else if (L[i - 1][j] >= L[i][j - 1]) i--; else j--; }
       var score = m ? L[m][n] / m : 0;
-      if (!best || score > best.score) best = { score: score, ok: ok, heard: heard };
+      if (!best || score > best.score) best = { score: score, ok: ok, heard: heardAll[hi - hi % 3] };
     });
     return best;
   }
@@ -932,8 +970,8 @@
     var it = P.queue[0], given = '';
     if (it.t === 'tiles') given = P.line.map(function (i) { return it.bank[i]; }).join(' ');
     else if (it.t === 'type') { var inp = $('#answer'); given = inp ? inp.value : ''; if (!given.trim()) { inp.focus(); return; } }
-    var bare = function (x) { return norm(x).replace(/'/g, ''); };
-    var right = norm(given) === norm(it.ans);
+    var bare = function (x) { return norm(spoken(x)).replace(/'/g, ''); };
+    var right = norm(given) === norm(it.ans) || norm(spoken(given)) === norm(it.ans) || norm(spoken(given, true)) === norm(it.ans);
     if (!right && !it.listen && (it.t === 'tiles' || it.t === 'type')) right = movedTime(tokensOf(given), tokensOf(it.ans)) || movedPlease(tokensOf(given), tokensOf(it.ans));
     if (!right && it.alts) right = it.alts.some(function (a) { return bare(a) === bare(given); });
     if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
