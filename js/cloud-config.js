@@ -5,6 +5,6 @@
    The apiKey of a Firebase web app is meant to be public; access is guarded by the
    Firestore rules in firestore.rules. */
 window.SPEAKEASY_FIREBASE = {
-  apiKey: '',
-  projectId: ''
+  apiKey: 'AIzaSyCyUT52mmuimLrVqV96pi2qC-Ka_BSqhQ4',
+  projectId: 'englishexpe'
 };
