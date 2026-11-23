@@ -224,6 +224,40 @@
   var INT = [0, 1, 2, 4, 8, 16, 32, 64, 128];
   var CARD = {};
   LESSONS.forEach(function (l) { l.words.forEach(function (w) { CARD[l.id + '|' + w[0]] = { w: w, l: l }; }); });
+
+  /* ---------------- vocabulary bank (js/vocab-*.js) ----------------
+     each level file holds packs of 20 words: "@ id | Thai title | English title" then "word|pos|meaning".
+     "orange (color)" shows and speaks as "orange" with the note "color". Cards are keyed v|word. */
+  var POS = { n: 'คำนาม', v: 'กริยา', adj: 'คุณศัพท์', adv: 'กริยาวิเศษณ์', prep: 'บุพบท', conj: 'คำเชื่อม', pron: 'สรรพนาม', det: 'คำบ่งชี้', num: 'ตัวเลข', phr: 'วลี', int: 'คำอุทาน' };
+  var LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1'];
+  var VPACKS = [], VBYID = {};
+  (window.VOCAB || []).forEach(function (v) {
+    var cur = null;
+    String(v.text || '').split('\n').forEach(function (raw) {
+      var line = raw.trim();
+      if (!line) return;
+      if (line[0] === '@') {
+        var h = line.slice(1).split('|').map(function (x) { return x.trim(); });
+        cur = { id: h[0], title: h[1], en: h[2], lvl: v.lvl, words: [], keys: [], pos: [], notes: [], sents: [], vocab: true };
+        cur.from = 'จากคลังศัพท์ ' + v.lvl + ' ชุด' + h[1];
+        VPACKS.push(cur); VBYID[cur.id] = cur;
+        return;
+      }
+      var p = line.split('|');
+      if (!cur || p.length < 3 || cur.keys.indexOf('v|' + p[0]) !== -1) return;
+      var m = p[0].match(/^(.*?)\s*\((.+)\)$/);
+      cur.words.push([m ? m[1] : p[0], p[2]]); cur.keys.push('v|' + p[0]); cur.pos.push(p[1]); cur.notes.push(m ? m[2] : '');
+    });
+  });
+  VPACKS = VPACKS.map(function (pk, i) { return { pk: pk, i: i }; }).sort(function (a, b) { return LEVELS.indexOf(a.pk.lvl) - LEVELS.indexOf(b.pk.lvl) || a.i - b.i; }).map(function (x) { return x.pk; });
+  VPACKS.forEach(function (pk, i) { pk.n = i; pk.words.forEach(function (w, j) { if (!CARD[pk.keys[j]]) CARD[pk.keys[j]] = { w: w, l: pk }; }); });
+  var VCOUNT = VPACKS.reduce(function (a, pk) { return a + pk.words.length; }, 0);
+  function packLearned(pk) { return pk.keys.filter(function (k) { return S.srs[k]; }).length; }
+  function addPackCards(pk) {
+    var t = dayIndex(), added = 0;
+    pk.keys.forEach(function (k) { if (!S.srs[k]) { S.srs[k] = { b: 0, d: t + 1 }; added++; } });
+    return added;
+  }
   function addCards(l) {
     var t = dayIndex(), added = 0;
     l.words.forEach(function (w) { var k = l.id + '|' + w[0]; if (!S.srs[k]) { S.srs[k] = { b: 0, d: t + 1 }; added++; } });
@@ -577,7 +611,7 @@
     return A.some(function (x) { return B.some(function (y) { return x === y || x.indexOf(y) === 0 || y.indexOf(x) === 0; }); });
   }
   var ALLWORDS = null;
-  function allWords() { return ALLWORDS || (ALLWORDS = LESSONS.reduce(function (a, l) { return a.concat(l.words || []); }, [])); }
+  function allWords() { return ALLWORDS || (ALLWORDS = LESSONS.concat(VPACKS).reduce(function (a, l) { return a.concat(l.words || []); }, [])); }
   function sameMeaning(w) {
     var mine = thSegs(w[1]);
     return allWords().filter(function (x) { return thSegs(x[1]).some(function (t) { return mine.indexOf(t) !== -1; }); }).map(function (x) { return x[0]; });
@@ -703,6 +737,23 @@
     if (SRC) out.push(speakItem(Ss[3] || Ss[0] || l.sents[0]));
     return out;
   }
+  /* a word pack: every word once, as meaning, listening, English and typing questions, plus two matching rounds */
+  function buildPack(pk) {
+    var pool = VPACKS.filter(function (p) { return p.lvl === pk.lvl; }).reduce(function (a, p) { return a.concat(p.words); }, []);
+    var items = shuffle(pk.words.map(function (w, i) { return i; })).map(function (i, n) {
+      var w = pk.words[i], it, kind = n % 4;
+      if (kind === 0) it = mcqMeaning(w, pk.words, pool);
+      else if (kind === 1) it = TTS ? mcqListen(w, pk.words, pool) : mcqWord(w, pk.words, pool);
+      else if (kind === 2) it = mcqWord(w, pk.words, pool);
+      else it = typable(w) ? typeWord(w) : mcqMeaning(w, pk.words, pool);
+      if (pk.notes[i] && it.t === 'mcq' && it.bigTh) it.bigTh = w[1] + ' (' + pk.notes[i] + ')';
+      it.k = pk.keys[i];
+      return it;
+    });
+    items.splice(7, 0, matchItem(shuffle(pk.words), shuffle(pool)));
+    items.splice(15, 0, matchItem(shuffle(pk.words), shuffle(pool)));
+    return items;
+  }
   function buildCheck(st) {
     var pool = stageWords(st.si), all = [], sentPool = st.lessons.reduce(function (a, l) { return a.concat(l.sents); }, []);
     var W = shuffle(pool);
@@ -750,7 +801,7 @@
   var P = null;
   function startPlay(kind, obj) {
     hush();
-    var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : buildCheck(obj);
+    var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : kind === 'pack' ? buildPack(obj) : buildCheck(obj);
     P = { kind: kind, obj: obj, queue: items.slice(), total: items.length, step: 0, planned: items.length, confirmQuit: false, finished: 0, right: 0, scored: 0, phase: 'answer', sel: null, line: [], tries: 0, missed: [] };
     items.forEach(function (it) { it.first = true; });
     playRender();
@@ -832,7 +883,7 @@
     var it = P.queue[0];
     if (!it) { finishPlay(); return; }
     P.phase = 'answer'; P.sel = null; P.line = []; P.tries = 0; P.mm = { sel: null, done: 0, miss: 0 }; P.dictMark = '';
-    var label = P.kind === 'lesson' ? P.obj.title : P.kind === 'mix' ? 'ฝึกรวม' : 'ด่านสอบขั้น ' + (P.obj.si + 1);
+    var label = P.kind === 'lesson' ? P.obj.title : P.kind === 'mix' ? 'ฝึกรวม' : P.kind === 'pack' ? 'ชุดคำ' + P.obj.title : 'ด่านสอบขั้น ' + (P.obj.si + 1);
     render(
       '<div class="player">' +
         '<div class="container player__bar"><button class="btn btn--icon btn--sm" type="button" data-act="quit" aria-label="ออกจากแบบฝึก">' + I.close + '</button>' +
@@ -895,6 +946,22 @@
           '<p class="lead">' + (passed ? 'คำศัพท์จากบท' + esc(o.title) + 'เข้าคลังแล้ว ระบบจะชวนทวนเมื่อใกล้ลืม' : 'ข้อที่พลาดรอบนี้จะจำได้ดีขึ้นในรอบหน้า ลองอีกรอบได้เลย') + '</p>' +
           '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' แต้ม</dd></div><div><dt>คำใหม่เข้าคลัง</dt><dd>' + added + ' คำ</dd></div></dl>' +
           '<div class="actions">' + nextBtn + (passed ? '<button class="btn" type="button" data-act="start" data-id="' + o.id + '">ฝึกบทนี้อีกครั้ง</button>' : '<a class="btn" href="#/lesson/' + o.id + '">อ่านเนื้อหาอีกรอบ</a>') + '<a class="btn" href="#/">ดูเส้นทาง</a></div>' +
+        '</div>';
+    } else if (P.kind === 'pack') {
+      var okp = score >= 60, prevp = S.done['v:' + o.id], addedp = 0;
+      xp = 8 + Math.round(score / 10);
+      if (okp) { S.done['v:' + o.id] = { best: Math.max(score, prevp ? prevp.best : 0), at: Date.now() }; addedp = addPackCards(o); }
+      save(); addXP(xp);
+      var nxp = VPACKS[o.n + 1], missp = P.missed.slice(0, 8);
+      html =
+        '<div class="result">' +
+          '<p class="result__big" data-pass="' + okp + '"' + (okp && !prevp ? ' data-new' : '') + '><b class="num">' + score + '%</b><span>' + (okp ? 'ผ่านชุด' + esc(o.title) : 'ต้องได้ 60% ขึ้นไป') + '</span></p>' +
+          '<h1>' + (okp ? (prevp ? 'ฝึกซ้ำได้ดีมาก' : 'ได้คำใหม่ ' + addedp + ' คำ') : 'อีกนิดเดียว') + '</h1>' +
+          '<p class="lead">' + (okp ? 'คำในชุดนี้เข้าคิวทวนแล้ว ระบบจะชวนทวนเมื่อใกล้ลืม' : 'ลองอ่านรายการคำในชุดนี้อีกรอบ แล้วกลับมาฝึกใหม่') + '</p>' +
+          '<dl class="facts"><div><dt>คะแนน</dt><dd>' + score + '%</dd></div><div><dt>ได้รับ</dt><dd>' + xp + ' แต้ม</dd></div><div><dt>คำใหม่เข้าคลัง</dt><dd>' + addedp + ' คำ</dd></div></dl>' +
+          (missp.length ? '<ul class="sents missed">' + missp.map(function (m) { return '<li><button class="sent" type="button" data-act="say" data-text="' + esc(m.en) + '"' + (TTS ? '' : ' disabled') + '>' + I.sound + '<span><span class="sent__en" lang="en">' + esc(m.en) + '</span><span class="sent__th">' + esc(m.th || '') + '</span></span></button></li>'; }).join('') + '</ul>' : '') +
+          '<div class="actions">' + (okp && nxp ? '<a class="btn btn--primary btn--lg" href="#/pack/' + nxp.id + '">ชุดถัดไป: ' + esc(nxp.title) + '</a>' : '<button class="btn btn--primary btn--lg" type="button" data-act="startpack" data-id="' + o.id + '">ลองอีกรอบ</button>') +
+            '<a class="btn" href="#/pack/' + o.id + '">ดูคำในชุดนี้</a><a class="btn" href="#/words">กลับไปคลังคำ</a></div>' +
         '</div>';
     } else if (P.kind === 'mix') {
       xp = 12 + Math.round(score / 10);
@@ -1067,7 +1134,7 @@
     var back = R.shown
       ? '<div class="flash__back"><p class="answer"' + (en ? '' : ' lang="en"') + '>' + esc(en ? c.w[1] : c.w[0]) + '</p>' + (en ? '' : sayBtn(c.w[0])) +
         (ex ? '<p class="flash__ex"><span lang="en">' + esc(ex[0]) + '</span><br>' + esc(ex[1]) + '</p>' : '') +
-        '<p class="flash__from">จากบท ' + esc(c.l.title) + '</p></div>'
+        '<p class="flash__from">' + esc(c.l.from || 'จากบท ' + c.l.title) + '</p></div>'
       : '<p class="muted">นึกคำตอบในใจก่อน แล้วค่อยเปิดดู</p>';
     var t = dayIndex();
     function when(b) { var d = INT[clamp(b, 0, INT.length - 1)]; return d === 0 ? 'วันนี้' : d === 1 ? 'พรุ่งนี้' : 'อีก ' + d + ' วัน'; }
@@ -1224,10 +1291,56 @@
   }
 
   /* ---------------- word bank ---------------- */
-  var WV = { q: '', st: 'all', all: false };
+  var WV = { q: '', st: 'all', all: false, tab: 'bank', lvl: 'A1', vq: '' };
+  function wordTabs() {
+    return '<div class="seg wtabs" role="group" aria-label="เลือกคลัง">' +
+      '<button type="button" data-act="wtab" data-tab="bank" aria-pressed="' + (WV.tab === 'bank') + '">คลังศัพท์ ' + fmt(VCOUNT) + ' คำ</button>' +
+      '<button type="button" data-act="wtab" data-tab="lessons" aria-pressed="' + (WV.tab === 'lessons') + '">คำจากบทเรียน</button></div>';
+  }
+  function viewBank() {
+    var learned = VPACKS.reduce(function (a, pk) { return a + packLearned(pk); }, 0);
+    render('<div class="view container">' +
+      '<div class="view__head"><h1>คลังคำ</h1><p>คำที่ใช้บ่อยที่สุด ' + fmt(VCOUNT) + ' คำ เรียงจากง่ายไปยาก ชุดละ 20 คำ ฝึกผ่านแล้วคำจะเข้าคิวทวนให้เอง เรียนแล้ว ' + fmt(learned) + ' คำ</p></div>' +
+      wordTabs() +
+      '<div class="filters"><div class="field"><label for="vq">ค้นหาในคลังศัพท์ (อังกฤษหรือไทย)</label><input class="input" id="vq" type="search" autocomplete="off" value="' + esc(WV.vq) + '" data-act="vsearch"></div>' +
+      '<div class="seg" role="group" aria-label="เลือกระดับ">' + LEVELS.map(function (lv) { return '<button type="button" data-act="vlvl" data-lvl="' + lv + '" aria-pressed="' + (WV.lvl === lv) + '">' + lv + '</button>'; }).join('') + '</div></div>' +
+      '<div id="vlist"></div></div>', { focus: false });
+    bankList();
+  }
+  function bankList() {
+    var box = $('#vlist'); if (!box) return;
+    var q = WV.vq.trim();
+    if (q) {
+      var nq = norm(q), rows = [];
+      VPACKS.forEach(function (pk) { pk.words.forEach(function (w, i) { if (norm(w[0]).indexOf(nq) !== -1 || w[1].indexOf(q) !== -1) rows.push({ pk: pk, i: i }); }); });
+      box.innerHTML = rows.length ? '<div class="table-wrap"><table><caption>พบ ' + rows.length + ' คำ</caption><thead><tr><th scope="col">คำ</th><th scope="col">ความหมาย</th><th scope="col">ชุด</th><th scope="col"><span class="visually-hidden">ฟัง</span></th></tr></thead><tbody>' +
+        rows.slice(0, 200).map(function (r) { var pk = r.pk, w = pk.words[r.i]; return '<tr><td class="en" lang="en">' + esc(w[0]) + (pk.notes[r.i] ? ' <span class="muted small">(' + esc(pk.notes[r.i]) + ')</span>' : '') + '</td><td>' + esc(w[1]) + ' <span class="muted small">' + (POS[pk.pos[r.i]] || '') + '</span></td><td class="small"><a href="#/pack/' + pk.id + '">' + pk.lvl + '&ensp;' + esc(pk.title) + '</a></td><td class="act">' + sayBtn(w[0], null, 'btn--sm') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+        : '<div class="empty sheet"><h2>ไม่พบคำนี้ในคลัง</h2><p>ลองพิมพ์คำสั้นลง หรือค้นเป็นภาษาไทย</p></div>';
+      return;
+    }
+    var list = VPACKS.filter(function (pk) { return pk.lvl === WV.lvl; });
+    box.innerHTML = '<ul class="packs">' + list.map(function (pk) {
+      var got = packLearned(pk), best = S.done['v:' + pk.id];
+      return '<li><a class="pack" href="#/pack/' + pk.id + '"' + (best ? ' data-done' : '') + '><span class="pack__lvl">' + pk.lvl + '</span><b>' + esc(pk.title) + '</b><span class="pack__en" lang="en">' + esc(pk.en) + '</span>' +
+        '<span class="pack__meter" aria-hidden="true"><i style="--p:' + (got / pk.words.length) + '"></i></span><span class="pack__stat">' + (best ? 'ผ่านแล้ว ' + best.best + '%' : got ? 'เรียนแล้ว ' + got + ' จาก ' + pk.words.length + ' คำ' : pk.words.length + ' คำ') + '</span></a></li>';
+    }).join('') + '</ul>';
+  }
+  function viewPack(pk) {
+    var best = S.done['v:' + pk.id], prev = VPACKS[pk.n - 1], next = VPACKS[pk.n + 1];
+    render('<div class="view container">' +
+      '<div class="view__head"><p class="crumb"><a href="#/words">คลังคำ</a>&ensp;/&ensp;ระดับ ' + pk.lvl + '</p><h1>' + esc(pk.title) + '</h1><p><span lang="en">' + esc(pk.en) + '</span>&ensp;' + pk.words.length + ' คำ' + (best ? ' ผ่านแล้ว ' + best.best + '%' : '') + ' อ่านและฟังให้ครบก่อน แล้วกดฝึก</p></div>' +
+      '<div class="actions" style="margin-bottom: var(--space-xl)"><button class="btn btn--primary btn--lg" type="button" data-act="startpack" data-id="' + pk.id + '">' + (best ? 'ฝึกชุดนี้อีกครั้ง' : 'เริ่มฝึกชุดนี้') + '</button></div>' +
+      '<div class="table-wrap"><table><caption class="visually-hidden">คำในชุด' + esc(pk.title) + '</caption><thead><tr><th scope="col">คำ</th><th scope="col">ความหมาย</th><th scope="col">ชนิดคำ</th><th scope="col">สถานะ</th><th scope="col"><span class="visually-hidden">ฟัง</span></th></tr></thead><tbody>' +
+      pk.words.map(function (w, i) { var c = S.srs[pk.keys[i]], b = c ? c.b : -1; return '<tr><td class="en" lang="en">' + esc(w[0]) + (pk.notes[i] ? ' <span class="muted small">(' + esc(pk.notes[i]) + ')</span>' : '') + '</td><td>' + esc(w[1]) + '</td><td class="small">' + (POS[pk.pos[i]] || '') + '</td><td><span class="tag" data-b="' + (b < 0 ? '' : boxTier(b)) + '">' + (b < 0 ? 'ยังไม่เรียน' : boxLabel(b)) + '</span></td><td class="act">' + sayBtn(w[0], null, 'btn--sm') + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' +
+      '<nav class="pager" aria-label="ชุดคำอื่น">' + (prev ? '<a class="btn" href="#/pack/' + prev.id + '">ชุดก่อนหน้า: ' + esc(prev.title) + '</a>' : '<span></span>') + (next ? '<a class="btn" href="#/pack/' + next.id + '">ชุดถัดไป: ' + esc(next.title) + '</a>' : '') + '</nav>' +
+      '</div>', { focus: false });
+  }
   function viewWords() {
+    if (WV.tab === 'bank' && VPACKS.length) return viewBank();
     render('<div class="view container">' +
       '<div class="view__head"><h1>คลังคำ</h1><p>ทุกคำจากบทที่ผ่านแล้ว พร้อมสถานะความจำ แตะปุ่มเสียงเพื่อฟัง</p></div>' +
+      (VPACKS.length ? wordTabs() : '') +
       '<div class="filters"><div class="field"><label for="wq">ค้นหาคำ (อังกฤษหรือไทย)</label><input class="input" id="wq" name="q" type="search" autocomplete="off" value="' + esc(WV.q) + '" data-act="wsearch"></div>' +
       '<div class="seg" role="group" aria-label="กรองตามระดับ"><button type="button" data-act="wst" data-st="all" aria-pressed="' + (WV.st === 'all') + '">ทุกระดับ</button>' +
       C.map(function (s) { return '<button type="button" data-act="wst" data-st="' + s.id + '" aria-pressed="' + (WV.st === s.id) + '">' + s.cefr + '</button>'; }).join('') + '</div></div>' +
@@ -1416,6 +1529,7 @@
     if (v === 'review') return viewReview();
     if (v === 'speak') return viewSpeak();
     if (v === 'words') return viewWords();
+    if (v === 'pack' && VBYID[a]) { setNav('words'); viewPack(VBYID[a]); document.title = 'Words: ' + VBYID[a].en + ' (' + VBYID[a].lvl + ') | Speakeasy'; return; }
     if (v === 'progress') return viewProgress();
     if (v === 'account') return viewAccount();
     document.body.dataset.view = 'home';
@@ -1433,6 +1547,9 @@
       case 'sayall': { var l = byId[el.getAttribute('data-id')]; hush(); l.sents.forEach(function (s) { say(s[0], false, true); }); break; }
       case 'start': startPlay('lesson', byId[el.getAttribute('data-id')]); break;
       case 'startcheck': startPlay('check', stageById[el.getAttribute('data-id')]); break;
+      case 'startpack': if (VBYID[el.getAttribute('data-id')]) startPlay('pack', VBYID[el.getAttribute('data-id')]); break;
+      case 'wtab': WV.tab = el.getAttribute('data-tab'); viewWords(); break;
+      case 'vlvl': WV.lvl = el.getAttribute('data-lvl'); viewWords(); break;
       case 'quit': askQuit(); break;
       case 'quitno': if (P) { P.confirmQuit = false; updateBar(); } break;
       case 'quityes': leavePlay(); break;
@@ -1528,6 +1645,7 @@
   document.addEventListener('input', function (e) {
     var el = e.target;
     if (el.getAttribute && el.getAttribute('data-act') === 'wsearch') { WV.q = el.value; wordsList(); }
+    if (el.getAttribute && el.getAttribute('data-act') === 'vsearch') { WV.vq = el.value; bankList(); }
     if (el.id === 'rate') { var v = $('#rate-v'); if (v) v.textContent = (+el.value).toFixed(2); }
   });
   document.addEventListener('keydown', function (e) {

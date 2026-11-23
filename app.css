@@ -34,7 +34,7 @@ h2[lang="en"], .flash__front h2 { font-weight: 700; letter-spacing: 0; }
 .skip:focus-visible { top: var(--space-md); }
 
 /* the die-cut: a white edge on a hard printed shadow */
-.slide__in, .tile, .notes, .empty, .settings, .acct__card, .speak__card, .flash, .result__big, .fixes li, .stats > div { border: var(--cut) solid var(--color-white); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+.slide__in, .tile, .notes, .empty, .settings, .acct__card, .pack, .speak__card, .flash, .result__big, .fixes li, .stats > div { border: var(--cut) solid var(--color-white); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
 
 /* ---------- top bar: an ink band ---------- */
 .bar { position: sticky; top: 0; z-index: var(--z-sticky-nav); background: var(--color-ink); color: var(--color-paper); }
@@ -280,9 +280,9 @@ button.tile:hover { translate: 0 -2px; rotate: -2deg; }
 button.tile:active { translate: 2px 3px; box-shadow: var(--shadow-press); }
 /* a word moved into the answer line leaves an empty slot in the bank; after checking, the answer line stays readable */
 .tiles__bank .tile[data-used] { visibility: hidden; }
-.tiles__line .tile:disabled { opacity: 1; cursor: default; }
+.tiles__line .tile:disabled { cursor: default; }
 .tiles__line .tile[data-mark="wrong"] { --tc: var(--color-blush); color: var(--color-error); text-decoration: line-through; text-decoration-thickness: 2px; }
-.tiles__bank .tile:disabled:not([data-used]) { opacity: 0.45; }
+.tiles__bank .tile:disabled:not([data-used]) { --tc: var(--color-paper-2); color: var(--color-muted); box-shadow: none; cursor: not-allowed; }
 .tiles__line[data-mark="right"] { border-bottom-color: var(--color-success); border-bottom-style: solid; }
 .tiles__line[data-mark="wrong"] { border-bottom-color: var(--color-error); border-bottom-style: solid; }
 .tiles__line .tile:nth-child(4n+1) { --tc: var(--color-pink); rotate: -2deg; }
@@ -418,6 +418,24 @@ td.nw, td.num { white-space: nowrap; }
 .status[data-err] { color: var(--color-error); }
 
 /* ---------- account ---------- */
+/* ---------- vocabulary bank ---------- */
+.wtabs { margin-bottom: var(--space-lg); }
+.packs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-lg); }
+.pack { display: grid; gap: var(--space-2xs); height: 100%; padding: var(--space-lg); background: var(--color-white); color: var(--color-ink); text-decoration: none; transition: translate var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out); }
+.packs li:nth-child(3n+1) .pack { rotate: -0.8deg; }
+.packs li:nth-child(3n+2) .pack { rotate: 0.6deg; }
+.pack:hover { translate: 0 -2px; }
+.pack:active { translate: 1px 2px; box-shadow: var(--shadow-press); }
+.pack:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.pack[data-done] { background: var(--color-mint); }
+.pack b { font-size: var(--text-lg); line-height: 1.3; }
+.pack__lvl { justify-self: start; padding: 0 var(--space-xs); border-radius: var(--radius-pill); background: var(--color-butter); font-size: var(--text-sm); font-weight: 700; }
+.pack__en { color: var(--color-ink-2); font-size: var(--text-sm); }
+.pack__meter { display: block; height: 8px; margin-top: var(--space-sm); border-radius: var(--radius-pill); background: var(--color-paper-3); overflow: hidden; }
+.pack__meter i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--color-teal); }
+.pack__stat { font-size: var(--text-sm); font-weight: 600; color: var(--color-ink-2); }
+.pager { display: flex; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; margin-top: var(--space-xl); }
+
 /* one centred column: heading, card and footnote share the same axis */
 .acct { display: grid; justify-items: center; }
 .acct .view__head { justify-items: center; text-align: center; max-width: 34rem; }
