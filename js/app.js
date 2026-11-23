@@ -593,6 +593,26 @@
     }
     return out;
   }
+  /* words that fit the same gap in a sentence: as wrong choices in fill-the-blank they would make
+     another correct sentence ("I don't drink any coffee" as well as "much coffee") */
+  var SLOTS = [
+    ['some', 'any', 'many', 'much', 'a lot of', 'no', 'a few', 'a little'],
+    ['always', 'usually', 'sometimes', 'never', 'often', 'rarely', 'hardly ever', 'seldom'],
+    ['can', 'could', 'should', 'must', 'have to', 'might', 'may', 'will', 'would', 'need to', "don't have to", "mustn't", "shouldn't", 'going to'],
+    ['who', 'which', 'that', 'whose', 'where'],
+    ['although', 'even though', 'though', 'despite', 'whereas', 'while'],
+    ['however', 'moreover', 'therefore', 'as a result', 'on the other hand', 'instead'],
+    ['because', 'so'],
+    ['bigger', 'smaller', 'cheaper', 'more expensive', 'better', 'worse', 'the best', 'the most'],
+    ['today', 'tomorrow', 'yesterday', 'tonight', 'right now', 'at the moment', 'now', 'every day', 'next week', 'last night', 'last weekend'],
+    ['already', 'yet', 'just', 'ever', 'never', 'still'],
+    ['like', 'love', 'hate', 'enjoy'],
+    ['said', 'told', 'asked', 'explained', 'mentioned', 'promised', 'suggested', 'warned', 'admitted']
+  ];
+  function sameSlot(a, b) {
+    a = a.toLowerCase(); b = b.toLowerCase();
+    return SLOTS.some(function (g) { return g.indexOf(a) !== -1 && g.indexOf(b) !== -1; });
+  }
   function matchSet(list, n) {
     var out = [];
     for (var i = 0; i < list.length && out.length < n; i++) { var x = list[i]; if (!out.some(function (o) { return clash(o, x); })) out.push(x); }
@@ -647,8 +667,8 @@
         if (!m) continue;
         used[w[0]] = 1;
         var blanked = s[0].replace(re, '$1_____');
-        var opts = shuffle([w[0]].concat(wrongChoices(w, shuffle(l.words.filter(function (x) { return x[0].length >= 2; })).concat(shuffle(poolWords || [])), 3, 0)));
-        out.push({ t: 'mcq', q: 'เลือกคำที่หายไปให้ประโยคสมบูรณ์', cloze: blanked, clozeTh: s[1], opts: opts, optEn: true, ans: w[0], en: s[0], th: s[1], k: l.id + '|' + w[0] });
+        var opts = shuffle([w[0]].concat(wrongChoices(w, shuffle(l.words.filter(function (x) { return x[0].length >= 2 && !sameSlot(x[0], w[0]); })).concat(shuffle((poolWords || []).filter(function (x) { return !sameSlot(x[0], w[0]); }))), 3, 0)));
+        out.push({ t: 'mcq', q: 'เลือกคำที่หายไป ให้ประโยคตรงกับคำแปลด้านล่าง', cloze: blanked, clozeTh: s[1], opts: opts, optEn: true, ans: w[0], en: s[0], th: s[1], k: l.id + '|' + w[0] });
         return;
       }
     });
