@@ -784,6 +784,13 @@
       var body;
       if (it.t === 'match') body = good ? '<p>จับคู่ครบ ' + it.pairs.length + ' คู่' + (P.mm.miss ? ' พลาด ' + P.mm.miss + ' ครั้ง' : ' ไม่พลาดเลย') + '</p>' : '<p>พลาด ' + P.mm.miss + ' ครั้ง คู่ที่ถูกคือ</p><p class="th">' + it.pairs.map(function (w) { return '<span lang="en">' + esc(w[0]) + '</span> = ' + esc(w[1]); }).join('&emsp;') + '</p>';
       else if (it.fix) body = (good ? '<p lang="en">' + esc(it.ans) + '</p>' : '<p>ประโยคที่ถูกคือ <b lang="en">' + esc(it.ans) + '</b></p>') + '<p class="th">' + esc(it.why) + '</p>';
+      else if (it.t === 'tiles' && !good && P.tileDiff) {
+        var d = P.tileDiff, en = function (a) { return a.map(function (x) { return '<b lang="en">' + esc(x) + '</b>'; }).join(', '); };
+        var why = d.extra.length === 1 && d.missing.length === 1 ? 'ต้องใช้ ' + en(d.missing) + ' ไม่ใช่ ' + en(d.extra)
+          : d.extra.length || d.missing.length ? (d.extra.length ? 'คำที่ไม่อยู่ในประโยค: ' + en(d.extra) : '') + (d.extra.length && d.missing.length ? ' / ' : '') + (d.missing.length ? 'ยังขาดคำ: ' + en(d.missing) : '')
+          : 'คำครบแล้ว แต่ลำดับยังไม่ถูก';
+        body = '<p>คำตอบคือ <b lang="en">' + esc(it.ans) + '</b></p><p class="th">' + why + '</p>' + (it.th ? '<p class="th">' + esc(it.th) + '</p>' : '');
+      }
       else if (it.dict && !good) body = '<p>ที่ถูกคือ <b lang="en">' + esc(it.ans) + '</b></p><p class="th">' + (P.dictMark ? '<span class="heard">' + P.dictMark + '</span>' : '') + '</p><p class="th">' + esc(it.th) + '</p>';
       else body = good
         ? '<p lang="en">' + esc(it.en) + '</p>' + (it.th && it.t !== 'pair' ? '<p class="th">' + esc(it.th) + '</p>' : '')
@@ -977,6 +984,17 @@
     if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
     if (!right && it.t === 'type') right = norm(given).replace(/'/g, '') === norm(it.ans).replace(/'/g, '');
     var line = $('#line'); if (line) line.setAttribute('data-mark', right ? 'right' : 'wrong');
+    P.tileDiff = null;
+    if (!right && it.t === 'tiles') {
+      /* name what went wrong: a word that isn't in the sentence, a word left out, or only the order */
+      var want = tokensOf(it.ans).map(function (x) { return x.toLowerCase(); }), left = want.slice(), extra = [];
+      P.line.forEach(function (i) {
+        var w = it.bank[i], at = left.indexOf(w.toLowerCase());
+        if (at === -1) { extra.push(w); var el = $('#line [data-k="' + i + '"]'); if (el) el.setAttribute('data-mark', 'wrong'); }
+        else left.splice(at, 1);
+      });
+      P.tileDiff = { extra: extra, missing: left.map(function (x) { return tokensOf(it.ans).find(function (t) { return t.toLowerCase() === x; }) || x; }) };
+    }
     settle(right);
   }
   function micPress(btn) {

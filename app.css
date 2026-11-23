@@ -281,6 +281,7 @@ button.tile:active { translate: 2px 3px; box-shadow: var(--shadow-press); }
 /* a word moved into the answer line leaves an empty slot in the bank; after checking, the answer line stays readable */
 .tiles__bank .tile[data-used] { visibility: hidden; }
 .tiles__line .tile:disabled { opacity: 1; cursor: default; }
+.tiles__line .tile[data-mark="wrong"] { --tc: var(--color-blush); color: var(--color-error); text-decoration: line-through; text-decoration-thickness: 2px; }
 .tiles__bank .tile:disabled:not([data-used]) { opacity: 0.45; }
 .tiles__line[data-mark="right"] { border-bottom-color: var(--color-success); border-bottom-style: solid; }
 .tiles__line[data-mark="wrong"] { border-bottom-color: var(--color-error); border-bottom-style: solid; }
