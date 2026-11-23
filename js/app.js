@@ -245,20 +245,47 @@
   var voices = [];
   function loadVoices() { if (!TTS) return; voices = speechSynthesis.getVoices().filter(function (v) { return /^en([-_]|$)/i.test(v.lang); }); }
   if (TTS) { loadVoices(); speechSynthesis.onvoiceschanged = function () { loadVoices(); if (document.body.dataset.view === 'progress') fillVoices(); }; }
+  /* voices built into the device answer at once; online voices (Google, Microsoft Online, Natural)
+     send every sentence to a server first, which is where the long wait came from. So the default
+     is always a device voice, and an online voice is used only when the learner picks it. */
+  function isLocal(v) { return v.localService !== false && !/Google|Online|Natural/i.test(v.name); }
   function pickVoice() {
-    return voices.find(function (v) { return v.name === S.settings.voice; }) ||
-      voices.find(function (v) { return /en[-_]US/i.test(v.lang) && /Google|Samantha|Aria|Jenny|Natural/i.test(v.name); }) ||
-      voices.find(function (v) { return /en[-_](US|GB)/i.test(v.lang); }) || voices[0] || null;
+    if (!voices.length) loadVoices();
+    var mine = voices.find(function (v) { return v.name === S.settings.voice; });
+    if (mine) return mine;
+    var local = voices.filter(isLocal);
+    return local.find(function (v) { return /en[-_]US/i.test(v.lang) && /Samantha|Aria|Jenny|Zira|David|Alex|Ava|Allison|Susan/i.test(v.name); }) ||
+      local.find(function (v) { return /en[-_]US/i.test(v.lang); }) ||
+      local.find(function (v) { return /en[-_]GB/i.test(v.lang); }) ||
+      local[0] || voices[0] || null;
   }
-  function say(text, slow, queue) {
-    if (!TTS || !text) return;
-    if (!queue) speechSynthesis.cancel();
+  var ttsTimer = 0, ttsWarm = false;
+  function utter(text, slow) {
     var u = new SpeechSynthesisUtterance(text);
     var v = pickVoice();
     if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'en-US'; }
     u.rate = clamp((slow ? 0.62 : 1) * (S.settings.rate || 0.9), 0.4, 1.4);
-    speechSynthesis.speak(u);
+    return u;
   }
+  function say(text, slow, queue) {
+    if (!TTS || !text) return;
+    clearTimeout(ttsTimer);
+    if (queue) { speechSynthesis.speak(utter(text, slow)); return; }
+    var busy = speechSynthesis.speaking || speechSynthesis.pending;
+    speechSynthesis.cancel();
+    /* Chrome can swallow or stall a sentence queued in the same tick as cancel(), and can stay
+       paused after a long idle: resume, and give a just-cancelled engine one frame to settle */
+    var go = function () { if (speechSynthesis.paused) speechSynthesis.resume(); speechSynthesis.speak(utter(text, slow)); };
+    if (busy) ttsTimer = setTimeout(go, 40); else go();
+  }
+  /* the first sentence also waits for the engine to start; wake it on the first touch instead */
+  function warmTTS() {
+    if (ttsWarm || !TTS) return; ttsWarm = true;
+    loadVoices();
+    try { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; var v = pickVoice(); if (v) u.voice = v; speechSynthesis.speak(u); } catch (e) {}
+  }
+  document.addEventListener('pointerdown', warmTTS, { once: true, capture: true });
+  document.addEventListener('keydown', warmTTS, { once: true, capture: true });
   function hush() { if (TTS) speechSynthesis.cancel(); }
 
   /* ---------------- speech: hearing the learner ---------------- */
@@ -501,6 +528,38 @@
   }
 
   /* ---------------- exercise builders ---------------- */
+  /* two vocabulary entries "clash" when either could answer the same question: same English, or a
+     Thai meaning that is the same or one starts with the other (ต้อง: must / have to, ว่าง: free /
+     available). Clashing entries are never offered as wrong choices, never share a matching round,
+     and a typed answer is accepted for any entry with the same Thai meaning. */
+  function thSegs(t) { return String(t).replace(/\([^)]*\)/g, ' ').split('/').map(function (x) { return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean); }
+  function clash(a, b) {
+    if (norm(a[0]) === norm(b[0])) return true;
+    var A = thSegs(a[1]), B = thSegs(b[1]);
+    return A.some(function (x) { return B.some(function (y) { return x === y || x.indexOf(y) === 0 || y.indexOf(x) === 0; }); });
+  }
+  var ALLWORDS = null;
+  function allWords() { return ALLWORDS || (ALLWORDS = LESSONS.reduce(function (a, l) { return a.concat(l.words || []); }, [])); }
+  function sameMeaning(w) {
+    var mine = thSegs(w[1]);
+    return allWords().filter(function (x) { return thSegs(x[1]).some(function (t) { return mine.indexOf(t) !== -1; }); }).map(function (x) { return x[0]; });
+  }
+  /* n wrong choices for entry w, taken in order from the candidate entries, side 0 = English, 1 = Thai */
+  function wrongChoices(w, cands, n, side) {
+    var seen = {}, out = [];
+    seen[w[side].toLowerCase()] = 1;
+    for (var i = 0; i < cands.length && out.length < n; i++) {
+      var x = cands[i], k = x[side].toLowerCase();
+      if (seen[k] || clash(w, x)) continue;
+      seen[k] = 1; out.push(x[side]);
+    }
+    return out;
+  }
+  function matchSet(list, n) {
+    var out = [];
+    for (var i = 0; i < list.length && out.length < n; i++) { var x = list[i]; if (!out.some(function (o) { return clash(o, x); })) out.push(x); }
+    return out;
+  }
   function distract(answer, ordered, n) {
     var seen = {}, out = [];
     seen[answer.toLowerCase()] = 1;
@@ -509,19 +568,19 @@
   }
   function stageWords(si) { return C[si].lessons.reduce(function (a, l) { return a.concat(l.words); }, []); }
   function mcqMeaning(w, local, pool) {
-    var opts = shuffle([w[1]].concat(distract(w[1], shuffle(local.map(function (x) { return x[1]; })).concat(shuffle(pool.map(function (x) { return x[1]; }))), 3)));
+    var opts = shuffle([w[1]].concat(wrongChoices(w, shuffle(local).concat(shuffle(pool)), 3, 1)));
     return { t: 'mcq', q: 'คำนี้แปลว่าอะไร', big: w[0], say: w[0], opts: opts, ans: w[1], en: w[0], th: w[1] };
   }
   function mcqWord(w, local, pool) {
-    var opts = shuffle([w[0]].concat(distract(w[0], shuffle(local.map(function (x) { return x[0]; })).concat(shuffle(pool.map(function (x) { return x[0]; }))), 3)));
+    var opts = shuffle([w[0]].concat(wrongChoices(w, shuffle(local).concat(shuffle(pool)), 3, 0)));
     return { t: 'mcq', q: 'ภาษาอังกฤษพูดว่าอย่างไร', bigTh: w[1], opts: opts, optEn: true, ans: w[0], en: w[0], th: w[1] };
   }
   function mcqListen(w, local, pool) {
-    var opts = shuffle([w[0]].concat(distract(w[0], shuffle(local.map(function (x) { return x[0]; })).concat(shuffle(pool.map(function (x) { return x[0]; }))), 3)));
+    var opts = shuffle([w[0]].concat(wrongChoices(w, shuffle(local).concat(shuffle(pool)), 3, 0)));
     return { t: 'mcq', q: 'ฟังแล้วเลือกคำที่ได้ยิน', listen: w[0], opts: opts, optEn: true, ans: w[0], en: w[0], th: w[1] };
   }
   function typable(w) { return w[0].length <= 18 && !/\.\.\.|…|\//.test(w[0]); }
-  function typeWord(w) { return { t: 'type', q: 'พิมพ์เป็นภาษาอังกฤษ', bigTh: w[1], hintSay: w[0], ans: w[0], en: w[0], th: w[1] }; }
+  function typeWord(w) { return { t: 'type', q: 'พิมพ์เป็นภาษาอังกฤษ', bigTh: w[1], hintSay: w[0], ans: w[0], alts: sameMeaning(w), en: w[0], th: w[1] }; }
   function tileable(s) { var n = tokensOf(s[0]).length; return n >= 3 && n <= 12; }
   function tilesItem(s, others, dictation) {
     var toks = tokensOf(s[0]), lower = toks.map(function (t) { return t.toLowerCase(); });
@@ -550,7 +609,7 @@
         if (!m) continue;
         used[w[0]] = 1;
         var blanked = s[0].replace(re, '$1_____');
-        var opts = shuffle([w[0]].concat(distract(w[0], shuffle(l.words.map(function (x) { return x[0]; }).filter(function (x) { return x.length >= 2; })).concat(shuffle((poolWords || []).map(function (x) { return x[0]; }))), 3)));
+        var opts = shuffle([w[0]].concat(wrongChoices(w, shuffle(l.words.filter(function (x) { return x[0].length >= 2; })).concat(shuffle(poolWords || [])), 3, 0)));
         out.push({ t: 'mcq', q: 'เลือกคำที่หายไปให้ประโยคสมบูรณ์', cloze: blanked, clozeTh: s[1], opts: opts, optEn: true, ans: w[0], en: s[0], th: s[1], k: l.id + '|' + w[0] });
         return;
       }
@@ -560,7 +619,7 @@
   function fixItem(f) {
     return { t: 'mcq', q: 'ประโยคไหนถูกต้องและเป็นธรรมชาติ', fix: true, opts: shuffle([f[0], f[1]]), optEn: true, ans: f[1], en: f[1], why: f[2] };
   }
-  function matchItem(ws) { return { t: 'match', q: 'จับคู่คำศัพท์กับความหมาย', pairs: ws.slice(0, 5) }; }
+  function matchItem(ws, more) { return { t: 'match', q: 'จับคู่คำศัพท์กับความหมาย', pairs: matchSet(ws.concat(more || []), 5) }; }
   function dictItem(s) { return { t: 'type', q: 'ฟังแล้วพิมพ์ประโยคที่ได้ยิน', listen: s[0], dict: true, ans: s[0], en: s[0], th: s[1] }; }
   function shortSent(list) { return shuffle(list.filter(function (s) { var n = tokensOf(s[0]).length; return n >= 3 && n <= 8; }))[0]; }
   function withKey(it, l, w) { if (l && w) it.k = l.id + '|' + w[0]; return it; }
@@ -571,7 +630,7 @@
     W.slice(3, 4).forEach(function (w) { vocab.push(withKey(mcqWord(w, l.words, pool), l, w)); });
     W.slice(4, 6).forEach(function (w) { vocab.push(withKey(TTS ? mcqListen(w, l.words, pool) : mcqMeaning(w, l.words, pool), l, w)); });
     var tw = W.slice(6).concat(W).find(typable); if (tw) vocab.push(withKey(typeWord(tw), l, tw));
-    if (l.words.length >= 5) vocab.push(matchItem(shuffle(l.words)));
+    if (l.words.length >= 5) vocab.push(matchItem(shuffle(l.words), shuffle(pool)));
     if (TTS && l.pairs) shuffle(l.pairs).slice(0, 2).forEach(function (p) { vocab.push(pairItem(p)); });
     clozeItems(l, 2, pool).forEach(function (it) { sents.push(it); });
     shuffle(l.fix || []).slice(0, 2).forEach(function (f) { sents.push(fixItem(f)); });
@@ -593,7 +652,7 @@
     W.slice(4, 6).forEach(function (w) { all.push(mcqWord(w, pool, pool)); });
     W.slice(6, 8).forEach(function (w) { all.push(TTS ? mcqListen(w, pool, pool) : mcqMeaning(w, pool, pool)); });
     var tw = W.slice(8).find(typable); if (tw) all.push(typeWord(tw));
-    all.push(matchItem(W.slice(10, 15)));
+    all.push(matchItem(W.slice(10, 15), W.slice(15)));
     shuffle(st.lessons).slice(0, 2).forEach(function (l) { clozeItems(l, 1, pool).forEach(function (it) { all.push(it); }); });
     shuffle(st.lessons.reduce(function (a, l) { return a.concat(l.fix || []); }, [])).slice(0, 3).forEach(function (f) { all.push(fixItem(f)); });
     var Ss = shuffle(sentPool.filter(tileable));
@@ -618,7 +677,7 @@
     weak.slice(3, 5).forEach(function (x) { vocab.push(withKey(mcqWord(x.w, x.l.words, pool), x.l, x.w)); });
     weak.slice(5, 7).forEach(function (x) { vocab.push(withKey(TTS ? mcqListen(x.w, x.l.words, pool) : mcqMeaning(x.w, x.l.words, pool), x.l, x.w)); });
     var tx = weak.slice(7).find(function (x) { return typable(x.w); }); if (tx) vocab.push(withKey(typeWord(tx.w), tx.l, tx.w));
-    vocab.push(matchItem(weak.slice(8, 13).map(function (x) { return x.w; })));
+    vocab.push(matchItem(weak.slice(8, 13).map(function (x) { return x.w; }), weak.slice(13).map(function (x) { return x.w; })));
     byScore.slice(0, 2).forEach(function (l) { clozeItems(l, 1, pool).forEach(function (it) { sents.push(it); }); });
     shuffle(byScore.slice(0, 4).reduce(function (a, l) { return a.concat(l.fix || []); }, [])).slice(0, 3).forEach(function (f) { sents.push(fixItem(f)); });
     var sp = shuffle(byScore.slice(0, 4).reduce(function (a, l) { return a.concat(l.sents); }, []).filter(tileable));
@@ -719,8 +778,8 @@
       '</div>', { mode: 'play', focus: false });
     var first = $('#answer') || $('.opt') || $('.tile') || $('.mic') || $('[data-act="say"]');
     if (first) first.focus({ preventScroll: true });
-    if (it.listen) setTimeout(function () { say(it.listen); }, 250);
-    else if (it.t === 'mcq' && it.big) setTimeout(function () { say(it.say); }, 250);
+    if (it.listen) setTimeout(function () { say(it.listen); }, 120);
+    else if (it.t === 'mcq' && it.big) setTimeout(function () { say(it.say); }, 120);
   }
   function leavePlay() { if (/^#\/mix/.test(location.hash)) location.hash = '#/'; else route(); }
   function askQuit() {
@@ -827,6 +886,18 @@
   }
 
   /* answers */
+  /* "Next week I'm going to visit my parents" is as right as "I'm going to visit my parents next week":
+     accept the answer's own words with a time phrase moved from the end to the front */
+  var TIMEW = /^(?:today|tomorrow|yesterday|tonight|now|right now|later|every (?:day|week|morning|night)|(?:this|next|last) (?:week|weekend|month|year|morning|night|time|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|at (?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|night)(?: o'clock)?|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: morning| afternoon| evening| night)?|in the (?:morning|afternoon|evening)|\w+ (?:days?|weeks?|months?|years?) ago|(?:once|twice|three times) a (?:day|week)|this afternoon|last night)$/i;
+  function movedTime(given, ans) {
+    var g = given.map(function (t) { return t.toLowerCase(); }), a = ans.map(function (t) { return t.toLowerCase(); });
+    if (g.length !== a.length || a.length < 3) return false;
+    for (var k = 1; k < a.length; k++) {
+      var tail = a.slice(k), head = a.slice(0, k);
+      if (TIMEW.test(tail.join(' ')) && tail.concat(head).join(' ') === g.join(' ')) return true;
+    }
+    return false;
+  }
   function chooseOpt(btn) {
     if (!P || P.phase !== 'answer') return;
     var it = P.queue[0], v = btn.getAttribute('data-v'), right = v === it.ans;
@@ -850,7 +921,10 @@
     var it = P.queue[0], given = '';
     if (it.t === 'tiles') given = P.line.map(function (i) { return it.bank[i]; }).join(' ');
     else if (it.t === 'type') { var inp = $('#answer'); given = inp ? inp.value : ''; if (!given.trim()) { inp.focus(); return; } }
+    var bare = function (x) { return norm(x).replace(/'/g, ''); };
     var right = norm(given) === norm(it.ans);
+    if (!right && it.t === 'tiles') right = movedTime(tokensOf(given), tokensOf(it.ans));
+    if (!right && it.alts) right = it.alts.some(function (a) { return bare(a) === bare(given); });
     if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
     if (!right && it.t === 'type') right = norm(given).replace(/'/g, '') === norm(it.ans).replace(/'/g, '');
     settle(right);
@@ -920,7 +994,7 @@
       '<div class="review__bar"><h1 class="section-h" style="margin:0">ทวนคำศัพท์</h1><span class="muted num">' + (R.i + 1) + ' / ' + R.cards.length + '</span></div>' +
       '<div class="flash sheet" aria-live="polite">' + front + back + '</div>' + rate +
       '<p class="muted small kbd-hint" style="text-align:center; margin-top: var(--space-lg)">คีย์ลัด: เว้นวรรคเพื่อเปิด และเลข 1 ถึง 4 เพื่อให้คะแนน</p></div>', { focus: R.shown ? '[data-r="2"]' : '#reveal', keepScroll: true });
-    if (!R.shown && en) setTimeout(function () { say(c.w[0]); }, 200);
+    if (!R.shown && en) setTimeout(function () { say(c.w[0]); }, 120);
   }
   function rateCard(r) {
     var k = R.cards[R.i], s = S.srs[k], t = dayIndex();
@@ -1140,7 +1214,8 @@
     var sel = $('#voice'); if (!sel) return;
     if (!voices.length) { sel.innerHTML = '<option value="">' + (TTS ? 'เสียงเริ่มต้นของเครื่อง' : 'เบราว์เซอร์นี้ไม่มีเสียงอ่าน') + '</option>'; return; }
     var cur = pickVoice();
-    sel.innerHTML = voices.map(function (v) { return '<option value="' + esc(v.name) + '"' + (cur && cur.name === v.name ? ' selected' : '') + '>' + esc(v.name) + ' (' + esc(v.lang) + ')</option>'; }).join('');
+    var list = voices.filter(isLocal).concat(voices.filter(function (v) { return !isLocal(v); }));
+    sel.innerHTML = list.map(function (v) { return '<option value="' + esc(v.name) + '"' + (cur && cur.name === v.name ? ' selected' : '') + '>' + esc(v.name) + ' (' + esc(v.lang) + ')' + (isLocal(v) ? '' : ' ออนไลน์ อาจช้า') + '</option>'; }).join('');
   }
   function setStatus(msg, err) { var s = $('#set-status'); if (!s) return; s.textContent = msg; if (err) s.setAttribute('data-err', ''); else s.removeAttribute('data-err'); }
 

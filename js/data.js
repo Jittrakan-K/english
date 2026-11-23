@@ -22,7 +22,7 @@ window.COURSE = [
       "ภาษาอังกฤษมี 26 ตัวอักษร แต่ละตัวมีทั้ง <b>ชื่อ</b> และ <b>เสียง</b> เช่น G ชื่อว่า \"จี\" แต่ในคำว่า go ออกเสียง \"ก\"",
       "สระมี 5 ตัว: A E I O U ตัวอื่นเป็นพยัญชนะ",
       "ตัวที่คนไทยมักอ่านผิด: <b>E</b> อ่านว่า \"อี\" (ไม่ใช่ \"เอ\"), <b>I</b> อ่านว่า \"ไอ\", <b>R</b> อ่านว่า \"อาร์\", <b>W</b> อ่านว่า \"ดับเบิลยู\"",
-      "เสียงท้ายคำสำคัญมาก: rice (ข้าว) กับ lice (เหา) ต่างกันแค่ R กับ L ลองฟังคู่เสียงในแบบฝึกหัดให้ดี"
+      "ระวังเสียงที่คล้ายกัน: rice (ข้าว) กับ lice (เหา) ต่างกันแค่เสียงขึ้นต้น R กับ L ส่วน ship (เรือ) กับ sheep (แกะ) ต่างกันที่สระสั้นกับสระยาว ลองฟังคู่เสียงในแบบฝึกหัดให้ดี"
     ],
     words: [["A","เอ"],["E","อี"],["I","ไอ"],["G","จี"],["J","เจ"],["R","อาร์"],["V","วี"],["W","ดับเบิลยู"],["Y","วาย"],["Z","ซี (อเมริกัน) / เซ็ด (อังกฤษ)"]],
     sents: [
@@ -86,7 +86,7 @@ window.COURSE = [
       ["She is my friend.", "เธอเป็นเพื่อนของฉัน"],
       ["We are Thai.", "เราเป็นคนไทย"],
       ["They are teachers.", "พวกเขาเป็นครู"],
-      ["Are you a doctor? Yes, I am.", "คุณเป็นหมอใช่ไหม ใช่ ฉันเป็น"]
+      ["Are you a doctor? Yes, I am.", "คุณเป็นหมอหรือเปล่า ใช่ ฉันเป็นหมอ"]
     ]
   },
   {
@@ -118,11 +118,11 @@ window.COURSE = [
     ],
     words: [["mother","แม่"],["father","พ่อ"],["sister","พี่สาว / น้องสาว"],["brother","พี่ชาย / น้องชาย"],["son","ลูกชาย"],["daughter","ลูกสาว"],["husband","สามี"],["wife","ภรรยา"],["family","ครอบครัว"],["children","ลูก ๆ / เด็ก ๆ"]],
     sents: [
-      ["I have two brothers.", "ฉันมีพี่ชายน้องชายสองคน"],
+      ["I have two brothers.", "ฉันมีพี่น้องผู้ชายสองคน"],
       ["She has an older sister.", "เธอมีพี่สาวหนึ่งคน"],
       ["This is my mother.", "นี่คือแม่ของฉัน"],
       ["Do you have any children?", "คุณมีลูกไหม"],
-      ["My family is small.", "ครอบครัวของฉันเล็ก"]
+      ["My family is small.", "ครอบครัวของฉันเป็นครอบครัวเล็ก ๆ"]
     ]
   }
   ]
@@ -151,7 +151,7 @@ window.COURSE = [
     words: [["get up","ตื่นนอน"],["take a shower","อาบน้ำ"],["have breakfast","กินมื้อเช้า"],["go to work","ไปทำงาน"],["go to bed","เข้านอน"],["every day","ทุกวัน"],["always","เสมอ"],["usually","มักจะ"],["sometimes","บางครั้ง"],["never","ไม่เคยเลย"]],
     sents: [
       ["I get up at six every day.", "ฉันตื่นหกโมงทุกวัน"],
-      ["She goes to work by bus.", "เธอไปทำงานโดยรถเมล์"],
+      ["She goes to work by bus.", "เธอนั่งรถเมล์ไปทำงาน"],
       ["He never has breakfast.", "เขาไม่เคยกินข้าวเช้าเลย"],
       ["Do you work on Saturday?", "คุณทำงานวันเสาร์ไหม"],
       ["I usually go to bed at eleven.", "ฉันมักเข้านอนตอนห้าทุ่ม"]
@@ -271,7 +271,7 @@ window.COURSE = [
       "กริยาไม่ปกติต้องจำ: go → <b>went</b>, eat → <b>ate</b>, see → <b>saw</b>, buy → <b>bought</b>, have → <b>had</b>",
       "คำถามและปฏิเสธใช้ <b>did</b> แล้วกริยากลับเป็นรูปเดิม: Did you <b>go</b>? (ไม่ใช่ Did you went?)"
     ],
-    words: [["went","ไปแล้ว (go)"],["ate","กินแล้ว (eat)"],["saw","เห็นแล้ว (see)"],["bought","ซื้อแล้ว (buy)"],["had","มี / ได้กินแล้ว (have)"],["visited","ไปเยี่ยมแล้ว"],["watched","ดูแล้ว"],["last night","เมื่อคืน"],["last weekend","สุดสัปดาห์ที่แล้ว"],["ago","ที่แล้ว (ผ่านมา)"]],
+    words: [["went","ไป (รูปอดีตของ go)"],["ate","กิน (รูปอดีตของ eat)"],["saw","เห็น (รูปอดีตของ see)"],["bought","ซื้อ (รูปอดีตของ buy)"],["had","มี / กิน (รูปอดีตของ have)"],["visited","ไปเยี่ยม / ไปเที่ยว (รูปอดีตของ visit)"],["watched","ดู (รูปอดีตของ watch)"],["last night","เมื่อคืน"],["last weekend","สุดสัปดาห์ที่แล้ว"],["ago","ก่อน / ที่แล้ว (two days ago = สองวันก่อน)"]],
     sents: [
       ["I went to the beach last weekend.", "สุดสัปดาห์ที่แล้วฉันไปทะเล"],
       ["We ate seafood and watched the sunset.", "เรากินอาหารทะเลและดูพระอาทิตย์ตก"],
@@ -366,7 +366,7 @@ window.COURSE = [
       ["I have a headache and a fever.", "ฉันปวดหัวและมีไข้"],
       ["I don't feel well.", "ฉันรู้สึกไม่สบาย"],
       ["You should take this medicine twice a day.", "คุณควรกินยานี้วันละสองครั้ง"],
-      ["I need to make an appointment.", "ฉันต้องการทำนัด"],
+      ["I need to make an appointment.", "ฉันต้องขอนัดหมอ"],
       ["Is there a pharmacy near here?", "แถวนี้มีร้านขายยาไหม"]
     ]
   }
@@ -432,7 +432,7 @@ window.COURSE = [
     words: [["job","งาน"],["colleague","เพื่อนร่วมงาน"],["boss","หัวหน้า"],["salary","เงินเดือน"],["deadline","กำหนดส่ง"],["meeting","การประชุม"],["apply for","สมัคร"],["interview","สัมภาษณ์"],["responsible for","รับผิดชอบ"],["skill","ทักษะ"]],
     sents: [
       ["What do you do for a living?", "คุณทำงานอะไร"],
-      ["I work as a nurse in a big hospital.", "ฉันเป็นพยาบาลในโรงพยาบาลใหญ่"],
+      ["I work as a nurse in a big hospital.", "ฉันทำงานเป็นพยาบาลที่โรงพยาบาลใหญ่แห่งหนึ่ง"],
       ["I'm responsible for customer service.", "ฉันรับผิดชอบงานบริการลูกค้า"],
       ["We have a meeting every Monday.", "เรามีประชุมทุกวันจันทร์"],
       ["I applied for a new job last month.", "เดือนที่แล้วฉันสมัครงานใหม่"]
@@ -533,9 +533,9 @@ window.COURSE = [
       "ภาษาไทยมักใช้ \"ถูก\" กับเรื่องร้าย แต่ passive ในภาษาอังกฤษใช้ได้กับทุกเรื่อง: English is spoken here.",
       "ถ้าจะบอกผู้ทำ ใช้ <b>by</b>: The book was written by ..."
     ],
-    words: [["is made","ถูกทำ / ผลิต"],["was built","ถูกสร้าง"],["is spoken","ถูกพูด / ใช้พูด"],["was invented","ถูกประดิษฐ์"],["is called","ถูกเรียกว่า"],["was founded","ถูกก่อตั้ง"],["are sold","ถูกขาย"],["has been stolen","ถูกขโมยไปแล้ว"],["by hand","ด้วยมือ"],["produce","ผลิต"]],
+    words: [["is made","ทำ (จาก) / ผลิตขึ้น"],["was built","สร้างขึ้น"],["is spoken","ใช้พูด / มีคนพูด"],["was invented","ประดิษฐ์ขึ้น / คิดค้นขึ้น"],["is called","เรียกว่า / มีชื่อว่า"],["was founded","ก่อตั้งขึ้น"],["are sold","วางขาย / มีขาย"],["has been stolen","ถูกขโมยไปแล้ว"],["by hand","ด้วยมือ"],["produce","ผลิต"]],
     sents: [
-      ["English is spoken all over the world.", "ภาษาอังกฤษถูกใช้พูดทั่วโลก"],
+      ["English is spoken all over the world.", "คนทั่วโลกพูดภาษาอังกฤษ"],
       ["This temple was built over two hundred years ago.", "วัดนี้สร้างขึ้นเมื่อกว่าสองร้อยปีก่อน"],
       ["My bike has been stolen.", "จักรยานของฉันถูกขโมยไปแล้ว"],
       ["These bags are made by hand.", "กระเป๋าเหล่านี้ทำด้วยมือ"],
@@ -587,7 +587,7 @@ window.COURSE = [
       "<b>however / therefore / moreover</b> ขึ้นต้นประโยคใหม่แล้วตามด้วยจุลภาค",
       "<b>whereas / while</b> ใช้เทียบสองอย่างที่ต่างกัน"
     ],
-    words: [["although","แม้ว่า"],["despite","ทั้ง ๆ ที่ (+ คำนาม)"],["however","อย่างไรก็ตาม"],["therefore","ดังนั้น"],["moreover","ยิ่งไปกว่านั้น"],["whereas","ในขณะที่ (เทียบ)"],["on the other hand","ในทางกลับกัน"],["as a result","ผลที่ตามมาคือ"],["even though","ถึงแม้ว่า"],["instead","แทนที่จะ"]],
+    words: [["although","แม้ว่า"],["despite","ทั้ง ๆ ที่ (+ คำนาม)"],["however","อย่างไรก็ตาม"],["therefore","ดังนั้น"],["moreover","ยิ่งไปกว่านั้น"],["whereas","ในขณะที่ (เทียบ)"],["on the other hand","ในทางกลับกัน"],["as a result","ผลที่ตามมาคือ"],["even though","ถึงแม้ว่า"],["instead","แทน (instead of = แทนที่จะ)"]],
     sents: [
       ["Although it was late, we kept working.", "แม้จะดึกแล้ว เราก็ยังทำงานต่อ"],
       ["Despite the rain, the concert continued.", "ทั้งที่ฝนตก คอนเสิร์ตก็ยังดำเนินต่อ"],
@@ -660,7 +660,7 @@ window.COURSE = [
       ["I was wondering if you could help me.", "ไม่ทราบว่าคุณพอจะช่วยฉันได้ไหม"],
       ["Would you mind closing the window?", "รบกวนช่วยปิดหน้าต่างได้ไหม"],
       ["It seems there's been a misunderstanding.", "ดูเหมือนจะมีความเข้าใจผิดกันนะ"],
-      ["I'm afraid I can't make it.", "เสียใจด้วย ฉันไปไม่ได้"],
+      ["I'm afraid I can't make it.", "ขอโทษนะ ฉันคงไปไม่ได้"],
       ["This might be slightly over budget.", "อันนี้อาจเกินงบไปเล็กน้อย"]
     ]
   },
@@ -678,7 +678,7 @@ window.COURSE = [
       ["Today I'd like to give you an overview of our project.", "วันนี้ฉันอยากเล่าภาพรวมของโปรเจกต์เรา"],
       ["To begin with, let's look at the problem.", "อย่างแรก มาดูที่ปัญหากันก่อน"],
       ["As you can see from this chart, sales have doubled.", "อย่างที่เห็นจากกราฟนี้ ยอดขายเพิ่มขึ้นเป็นสองเท่า"],
-      ["Moving on to the next point.", "ต่อไปที่ประเด็นถัดไป"],
+      ["Moving on to the next point.", "ต่อไป มาดูประเด็นถัดไปกัน"],
       ["In conclusion, we need to act now.", "โดยสรุป เราต้องลงมือตอนนี้"]
     ]
   },
@@ -727,7 +727,7 @@ window.COURSE = [
       "inversion (ทางการ): <b>Not only is it</b> cheap, but it's also fast.",
       "<b>do / does / did</b> หน้ากริยาเพื่อเน้น: I <b>do</b> appreciate your help."
     ],
-    words: [["what I need is","สิ่งที่ฉันต้องการคือ"],["it was ... who","คือ...นั่นแหละที่"],["not only ... but also","ไม่เพียงแต่...แต่ยัง"],["the thing is","ประเด็นคือ"],["I do appreciate","ฉันซาบซึ้งจริง ๆ"],["rarely","แทบไม่เคย"],["by no means","ไม่ใช่เลยแม้แต่น้อย"],["hardly ever","แทบจะไม่เคย"],["never have I","ฉันไม่เคยเลยที่จะ"],["above all","เหนือสิ่งอื่นใด"]],
+    words: [["what I need is","สิ่งที่ฉันต้องการคือ"],["it was ... who","คือ...นั่นแหละที่"],["not only ... but also","ไม่เพียงแต่...แต่ยัง"],["the thing is","ประเด็นคือ"],["I do appreciate","ฉันซาบซึ้งจริง ๆ"],["rarely","แทบไม่เคย"],["by no means","ไม่ใช่เลยแม้แต่น้อย"],["hardly ever","แทบจะไม่เคย"],["never have I","ไม่เคยเลยที่ฉัน... (เน้นมาก)"],["above all","เหนือสิ่งอื่นใด"]],
     sents: [
       ["What I really need is a holiday.", "สิ่งที่ฉันต้องการจริง ๆ คือวันหยุด"],
       ["It was Nok who found the solution.", "นกนั่นแหละที่หาทางแก้เจอ"],

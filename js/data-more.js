@@ -45,9 +45,9 @@ fix: {
     ["I study in Monday morning.", "I study on Monday morning.", "วันบวกช่วงเวลา ยังใช้ on"]
   ],
   s1l3: [
-    ["Check bill, please.", "Can I have the bill, please?", "\"เช็กบิล\" เป็นภาษาไทย ภาษาอังกฤษขอ the bill หรือ the check"],
+    ["Check bill, please.", "Can I have the bill, please?", "\"เช็กบิล\" เป็นภาษาไทยแบบไทย ภาษาอังกฤษขอ the bill (อังกฤษ) หรือ the check (อเมริกัน) และพูดสั้น ๆ ว่า Check, please. ได้"],
     ["Not spicy too much, please.", "Not too spicy, please.", "too วางหน้าคำคุณศัพท์: too spicy"],
-    ["I want water.", "Could I have some water, please?", "ขอของในร้านใช้ Could I have ... please จะสุภาพกว่า I want มาก"]
+    ["Can I have some waters, please?", "Can I have some water, please?", "water นับไม่ได้ ไม่เติม s ถ้าจะนับให้พูดว่า a glass of water / a bottle of water"]
   ],
   s1l4: [
     ["How much this shirt?", "How much is this shirt?", "ต้องมี is ในคำถามราคา"],
@@ -55,7 +55,7 @@ fix: {
     ["It's very expensive, so I can't buy.", "It's too expensive, so I can't buy it.", "too = มากเกินจนทำไม่ได้ และ buy ต้องมีกรรม"]
   ],
   s1l5: [
-    ["My town have a big market.", "There is a big market in my town.", "\"มี\" สถานที่ใช้ There is / There are เป็นธรรมชาติที่สุด"],
+    ["My town have a big market.", "There is a big market in my town.", "my town เป็นเอกพจน์ ต้องใช้ has ไม่ใช่ have และถ้าพูดว่า \"มี\" สถานที่ ใช้ There is / There are จะเป็นธรรมชาติที่สุด"],
     ["There are a bank near here.", "There is a bank near here.", "a bank เป็นเอกพจน์ ใช้ There is"],
     ["The café is opposite of the park.", "The café is opposite the park.", "opposite ไม่ต้องตามด้วย of"]
   ],
@@ -207,7 +207,7 @@ fix: {
   s6l5: [
     ["What evidences do you have?", "What evidence do you have?", "evidence นับไม่ได้ ไม่เติม s"],
     ["It depends of how you look at it.", "It depends on how you look at it.", "depend on"],
-    ["I agree partly with you, but...", "I partly agree with you, but...", "partly วางหน้ากริยา agree"]
+    ["I am partly agree with you, but...", "I partly agree with you, but...", "agree เป็นกริยาอยู่แล้ว ไม่ต้องมี am และ partly วางหน้า agree"]
   ],
   s6l6: [
     ["It's on the top of my tongue.", "It's on the tip of my tongue.", "สำนวนคือ tip (ปลายลิ้น)"],
@@ -252,7 +252,7 @@ lessons: {
     ],
     words: [["some","บ้าง / จำนวนหนึ่ง"],["any","บ้าง / เลย (คำถาม ปฏิเสธ)"],["many","มาก (นับได้)"],["much","มาก (นับไม่ได้)"],["a lot of","เยอะ"],["people","ผู้คน"],["child","เด็กหนึ่งคน"],["children","เด็ก ๆ"],["man","ผู้ชาย"],["men","ผู้ชายหลายคน"]],
     sents: [
-      ["I have some friends in Bangkok.", "ฉันมีเพื่อนบางคนอยู่กรุงเทพ"],
+      ["I have some friends in Bangkok.", "ฉันมีเพื่อนอยู่ที่กรุงเทพอยู่บ้าง"],
       ["Do you have any questions?", "มีคำถามไหม"],
       ["There are many people here.", "ที่นี่มีคนเยอะ"],
       ["I don't drink much coffee.", "ฉันไม่ค่อยดื่มกาแฟ"],
@@ -275,7 +275,7 @@ lessons: {
       "คำนาม + y เป็นคำคุณศัพท์: sun → sunny, rain → rainy, cloud → cloudy, wind → windy",
       "อากาศเมืองไทยคือ hot and humid (ร้อนชื้น)"
     ],
-    words: [["hot","ร้อน"],["cold","หนาว / เย็น"],["warm","อุ่น"],["sunny","แดดจ้า"],["rainy","ฝนตก"],["cloudy","มีเมฆมาก"],["windy","ลมแรง"],["humid","ชื้น"],["season","ฤดู"],["umbrella","ร่ม"]],
+    words: [["hot","ร้อน"],["cold","หนาว / เย็น"],["warm","อุ่น"],["sunny","แดดจ้า"],["rainy","มีฝน / ฝนตกบ่อย"],["cloudy","มีเมฆมาก"],["windy","ลมแรง"],["humid","ชื้น"],["season","ฤดู"],["umbrella","ร่ม"]],
     sents: [
       ["It's really hot today.", "วันนี้ร้อนมาก"],
       ["It's going to rain this afternoon.", "บ่ายนี้ฝนจะตก"],
@@ -284,7 +284,7 @@ lessons: {
       ["What's the weather like in your city?", "อากาศที่เมืองคุณเป็นยังไง"]
     ],
     fix: [
-      ["Today is very hot.", "It's very hot today.", "พูดถึงอากาศ เจ้าของภาษาใช้ It's เป็นประธาน"],
+      ["Today weather is very hot.", "The weather is very hot today.", "weather ต้องมี the นำหน้า หรือพูดสั้น ๆ ว่า It's very hot today. ก็ได้"],
       ["How is the weather like?", "What is the weather like?", "สำนวนคือ What ... like"],
       ["It's rain now.", "It's raining now.", "ฝนกำลังตกใช้ raining"]
     ]
@@ -346,7 +346,7 @@ lessons: {
       "ตอบรับ: I'd love to! / Sounds good. / Sure, why not?",
       "ปฏิเสธนุ่มนวล: I'd love to, but I'm busy. Maybe another time?"
     ],
-    words: [["let's","มา...กันเถอะ"],["why don't we","ทำไมเราไม่...ล่ะ"],["how about","...ดีไหม"],["would you like to","อยากจะ...ไหม"],["I'd love to","อยากไปมาก"],["sounds good","ฟังดูดี"],["another time","คราวหน้า"],["join","ร่วม / มาด้วย"],["free","ว่าง"],["see you then","เจอกันตอนนั้นนะ"]],
+    words: [["let's","มา...กันเถอะ"],["why don't we","ทำไมเราไม่...ล่ะ"],["how about","...ดีไหม"],["would you like to","อยากจะ...ไหม"],["I'd love to","อยากมาก / ยินดีเลย"],["sounds good","ฟังดูดี"],["another time","คราวหน้า"],["join","ร่วม / มาด้วย"],["free","ว่าง"],["see you then","เจอกันตอนนั้นนะ"]],
     sents: [
       ["Would you like to have dinner with us?", "อยากไปกินข้าวเย็นกับพวกเราไหม"],
       ["I'd love to, thanks!", "อยากไปมาก ขอบคุณนะ"],
@@ -419,7 +419,7 @@ lessons: {
       "ห้ามใส่สรรพนามซ้ำ: The book that I read <s>it</s>",
       "ถ้าเป็นกรรม ตัด who / that ทิ้งได้: The man (who) I met was kind."
     ],
-    words: [["who","ผู้ซึ่ง (คน)"],["which","ซึ่ง (สิ่งของ)"],["that","ที่ (คนหรือของ)"],["where","ที่ซึ่ง (สถานที่)"],["whose","ซึ่ง...ของเขา"],["next door","บ้านข้าง ๆ"],["chef","พ่อครัว"],["pilot","นักบิน"],["change","เปลี่ยน"],["broken","เสีย / พัง"]],
+    words: [["who","ผู้ซึ่ง (คน)"],["which","ซึ่ง (สิ่งของ)"],["that","ที่ (คนหรือของ)"],["where","ที่ซึ่ง (สถานที่)"],["whose","ซึ่ง...ของเขา"],["next door","บ้านข้าง ๆ"],["chef","เชฟ / พ่อครัว"],["pilot","นักบิน"],["change","เปลี่ยน"],["broken","เสีย / พัง"]],
     sents: [
       ["The man who lives next door is a chef.", "ผู้ชายที่อยู่บ้านข้าง ๆ เป็นเชฟ"],
       ["This is the book that changed my life.", "นี่คือหนังสือที่เปลี่ยนชีวิตฉัน"],
@@ -541,7 +541,7 @@ lessons: {
     words: [["imagine","ลองนึกภาพ"],["picture this","ลองนึกภาพดู"],["think about it","ลองคิดดูนะ"],["it's worth","คุ้มที่จะ"],["what if","จะเป็นยังไงถ้า"],["the real question is","คำถามจริง ๆ คือ"],["let's be honest","มาพูดกันตรง ๆ"],["ultimately","ท้ายที่สุด"],["convinced","มั่นใจ / เชื่อแน่"],["it's your call","คุณตัดสินใจเลย"]],
     sents: [
       ["Imagine how much time we could save.", "ลองนึกดูว่าเราจะประหยัดเวลาได้แค่ไหน"],
-      ["Think about it: what do we really have to lose?", "ลองคิดดู เราจะเสียอะไรจริง ๆ"],
+      ["Think about it: what do we really have to lose?", "ลองคิดดูสิ เรามีอะไรต้องเสียจริง ๆ เหรอ"],
       ["It's worth trying at least once.", "คุ้มที่จะลองอย่างน้อยสักครั้ง"],
       ["What if we tried a different approach?", "ถ้าเราลองวิธีอื่นดูล่ะ"],
       ["Ultimately, it's your call.", "ท้ายที่สุดแล้วคุณตัดสินใจเองเลย"]
@@ -633,7 +633,7 @@ dialogs: {
   s4: [
     { title: "ประชุมทีม", th: "ขอความชัดเจนและเสนอแนวทางในที่ประชุม", lines: [
       ["Manager", "Let's get started. First, the project timeline.", "เริ่มกันเลย เรื่องแรกคือไทม์ไลน์โปรเจกต์"],
-      ["you", "Sorry to interrupt, but could you clarify the deadline?", "ขอโทษที่ขัดจังหวะ ช่วยยืนยันกำหนดส่งหน่อยได้ไหม"],
+      ["you", "Sorry to interrupt, but could you clarify the deadline?", "ขอโทษที่ขัดจังหวะ ช่วยบอกกำหนดส่งให้ชัดอีกทีได้ไหม"],
       ["Manager", "The deadline is the end of the month.", "กำหนดส่งคือสิ้นเดือน"],
       ["you", "In that case, I'd like to suggest a different approach.", "ถ้าอย่างนั้น ฉันขอเสนอวิธีอื่น"],
       ["Manager", "Go ahead. What do you have in mind?", "ว่ามาเลย คิดไว้ว่ายังไง"],
@@ -655,7 +655,7 @@ dialogs: {
       ["Supplier", "What did you have in mind?", "คุณคิดไว้ประมาณไหน"],
       ["you", "If we order a thousand units, could you offer a ten percent discount?", "ถ้าเราสั่งพันหน่วย ลดให้สิบเปอร์เซ็นต์ได้ไหม"],
       ["Supplier", "We could do seven percent.", "เราลดได้เจ็ดเปอร์เซ็นต์"],
-      ["you", "Let's meet halfway. Eight and a half percent, and we have a deal.", "เจอกันครึ่งทาง แปดจุดห้าเปอร์เซ็นต์ แล้วเราตกลงกัน"]
+      ["you", "Let's meet halfway. Eight and a half percent, and we have a deal.", "เจอกันครึ่งทางเถอะ แปดจุดห้าเปอร์เซ็นต์ แล้วเราก็ตกลงกันได้เลย"]
     ]},
     { title: "ปฏิเสธคำชวน", th: "ปฏิเสธเพื่อนอย่างสุภาพโดยไม่เสียน้ำใจ", lines: [
       ["Jess", "We're having a party on Saturday. Would you like to come?", "วันเสาร์เราจัดปาร์ตี้ อยากมาไหม"],
