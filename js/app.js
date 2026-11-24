@@ -12,7 +12,11 @@
   C.forEach(function (st) {
     ((MORE.lessons || {})[st.id] || []).forEach(function (l) { if (!st.lessons.some(function (x) { return x.id === l.id; })) st.lessons.push(l); });
     st.dialogs = (MORE.dialogs || {})[st.id] || [];
-    st.lessons.forEach(function (l) { if (!l.fix && MORE.fix && MORE.fix[l.id]) l.fix = MORE.fix[l.id]; l.fix = l.fix || []; });
+    st.lessons.forEach(function (l) {
+      if (!l.fix && MORE.fix && MORE.fix[l.id]) l.fix = MORE.fix[l.id]; l.fix = l.fix || [];
+      /* data-sents.js: more example sentences per lesson, skipping any the lesson already has */
+      ((MORE.sents || {})[l.id] || []).forEach(function (x) { if (!l.sents.some(function (y) { return y[0] === x[0]; })) l.sents.push(x); });
+    });
   });
 
   /* ---------------- data index ---------------- */
