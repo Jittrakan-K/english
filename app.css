@@ -331,6 +331,7 @@ button.tile:active { translate: 2px 3px; box-shadow: var(--shadow-press); }
 .facts > div:first-child { padding-left: 0; border-left: 0; }
 .facts dt { font-size: var(--text-sm); font-weight: 700; color: var(--color-muted); }
 .facts dd { margin: 0; font-size: var(--text-2xl); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.facts dd small { font-size: var(--text-sm); font-weight: 600; }
 .missed { width: 100%; text-align: left; }
 
 /* ---------- review ---------- */
@@ -435,6 +436,21 @@ td.nw, td.num { white-space: nowrap; }
 .pack__meter i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--color-teal); }
 .pack__stat { font-size: var(--text-sm); font-weight: 600; color: var(--color-ink-2); }
 .pager { display: flex; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; margin-top: var(--space-xl); }
+
+/* ---------- speaking: time, shadowing, timed talk ---------- */
+.spk { display: grid; gap: var(--space-xs); max-width: 36rem; }
+.spk p { margin: 0; }
+.speak__controls .seg { flex-wrap: wrap; }
+.flow__state { margin: var(--space-sm) 0 0; font-weight: 700; font-size: var(--text-lg); }
+[data-flow="speak"] .flow__state { color: var(--color-teal-deep); }
+.flow__res { list-style: none; margin: var(--space-md) 0; padding: 0; display: grid; gap: var(--space-2xs); }
+.flow__res li { display: flex; justify-content: space-between; gap: var(--space-md); padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-card); background: var(--color-mint); }
+.flow__res li[data-low="true"] { background: var(--color-blush); }
+.topic__clock { margin: var(--space-md) 0 var(--space-2xs); font-size: var(--text-4xl); font-weight: 800; line-height: 1; color: var(--color-teal-deep); }
+.topic__help { margin: 0 0 var(--space-md); padding-left: var(--space-lg); display: grid; gap: var(--space-3xs); }
+.topic__sample { margin: var(--space-md) 0; }
+.topic__sample summary { cursor: pointer; font-weight: 700; }
+.topic__sample summary:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 
 /* ---------- reading ---------- */
 .read__lvl { margin: var(--space-xl) 0 var(--space-md); font-size: var(--text-lg); }

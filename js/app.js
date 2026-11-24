@@ -63,7 +63,7 @@
   var ME = ACC ? ACC.session() : null;
   function slotKey(me) { me = me === undefined ? ME : me; return me ? 'speakeasy.u.' + me.mode + '.' + me.id : KEY; }
   function readSlot(me) { try { var raw = localStorage.getItem(slotKey(me)); return raw ? sanitize(JSON.parse(raw)) : null; } catch (e) { return null; } }
-  function defaults() { return { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: { goal: 20, rate: 0.9, voice: '', free: false, dir: 'en' }, created: Date.now(), t: 0, r: 0 }; }
+  function defaults() { return { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: { goal: 20, rate: 0.9, voice: '', free: false, dir: 'en' }, created: Date.now(), t: 0, r: 0, spk: {}, ss: {} }; }
   function load() {
     try {
       var raw = localStorage.getItem(slotKey());
@@ -85,6 +85,8 @@
     out.xp = Math.max(0, Math.round(+s.xp) || 0);
     Object.keys(obj(s.days)).forEach(function (k) { var v = +s.days[k]; if (/^\d{4}-\d{2}-\d{2}$/.test(k) && v > 0) out.days[k] = Math.round(v); });
     Object.keys(obj(s.srs)).forEach(function (k) { var v = s.srs[k]; if (v && isFinite(+v.b) && isFinite(+v.d)) out.srs[k] = { b: clamp(Math.round(+v.b), 0, 8), d: Math.round(+v.d) }; });
+    out.spk = {}; Object.keys(obj(s.spk)).forEach(function (k) { var v = +s.spk[k]; if (/^\d{4}-\d{2}-\d{2}$/.test(k) && isFinite(v) && v > 0) out.spk[k] = Math.min(v, 86400); });
+    out.ss = {}; Object.keys(obj(s.ss)).slice(0, 600).forEach(function (k) { var v = s.ss[k]; if (v && typeof v.th === 'string' && isFinite(+v.b) && isFinite(+v.d)) out.ss[String(k).slice(0, 300)] = { th: v.th.slice(0, 300), b: clamp(Math.round(+v.b), 0, 8), d: Math.round(+v.d) }; });
     var st = obj(s.settings);
     out.settings = {
       goal: [10, 20, 30, 50].indexOf(+st.goal) !== -1 ? +st.goal : 20,
@@ -113,6 +115,8 @@
     Object.keys(older.days).forEach(function (k) { out.days[k] = Math.max(out.days[k] || 0, older.days[k]); });
     Object.keys(older.srs).forEach(function (k) { if (!out.srs[k]) out.srs[k] = older.srs[k]; });
     out.xp = Math.max(out.xp, older.xp);
+    Object.keys(older.spk || {}).forEach(function (k) { out.spk[k] = Math.max(out.spk[k] || 0, older.spk[k]); });
+    Object.keys(older.ss || {}).forEach(function (k) { if (!out.ss[k]) out.ss[k] = older.ss[k]; });
     out.created = Math.min(a.created || Date.now(), b.created || Date.now());
     return out;
   }
@@ -194,6 +198,12 @@
   window.addEventListener('online', function () { if (cloudOn()) { if (SYNC.dirty) pushNow(); else pullNow(); } });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && SYNC.dirty) pushNow(true); else if (document.visibilityState === 'visible' && cloudOn() && !SYNC.dirty && Date.now() - SYNC.at > 60000) pullNow(); });
 
+  /* seconds actually spent speaking: mic takes, recordings and timed talks; a day's goal is five minutes */
+  var SPEAK_GOAL = 300;
+  function addSpeak(sec) { sec = Math.round(Math.min(Math.max(sec, 0), 180)); if (sec < 1) return; var k = dayKey(); S.spk[k] = (S.spk[k] || 0) + sec; save(); }
+  function spokeToday() { return S.spk[dayKey()] || 0; }
+  function spokeWeek() { var t = 0, d = new Date(); for (var i = 0; i < 7; i++) { t += S.spk[dayKey(d)] || 0; d.setDate(d.getDate() - 1); } return t; }
+  function mins(sec) { return sec < 60 ? sec + ' วินาที' : Math.floor(sec / 60) + ' นาที' + (sec % 60 >= 30 ? 'ครึ่ง' : ''); }
   function addXP(n) { if (!n) return; S.xp += n; var k = dayKey(); S.days[k] = (S.days[k] || 0) + n; save(); chrome(); }
   function xpToday() { return S.days[dayKey()] || 0; }
   function streak() {
@@ -316,6 +326,15 @@
     var go = function () { if (speechSynthesis.paused) speechSynthesis.resume(); speechSynthesis.speak(utter(text, slow)); };
     if (busy) ttsTimer = setTimeout(go, 40); else go();
   }
+  /* speak, then call back once: on the utterance's end, or after a length-based guess if the engine never says so */
+  function sayThen(text, slow, cb) {
+    var done = false, fire = function () { if (done) return; done = true; clearTimeout(guard); cb(); };
+    var guard = setTimeout(fire, 1500 + text.length * (slow ? 120 : 75));
+    if (!TTS) return;
+    clearTimeout(ttsTimer); speechSynthesis.cancel();
+    var u = utter(text, slow); u.onend = function () { setTimeout(fire, 150); }; u.onerror = fire;
+    setTimeout(function () { if (speechSynthesis.paused) speechSynthesis.resume(); speechSynthesis.speak(u); }, 40);
+  }
   /* the first sentence also waits for the engine to start; wake it on the first touch instead */
   function warmTTS() {
     if (ttsWarm || !TTS) return; ttsWarm = true;
@@ -333,7 +352,9 @@
     if (!SRC) { onDone({ error: 'unsupported' }); return; }
     if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
     hush();
-    var r = new SRC(), alts = [], finished = false;
+    var r = new SRC(), alts = [], finished = false, began = 0;
+    r.onspeechstart = function () { began = Date.now(); };
+    var spoke = function () { if (began) { addSpeak((Date.now() - began) / 1000); began = 0; } };
     r.lang = 'en-US'; r.interimResults = true; r.maxAlternatives = 4; r.continuous = false;
     r.onresult = function (e) {
       var interim = '';
@@ -344,8 +365,8 @@
       }
       onInterim(alts.map(function (a) { return a[0]; }).join(' ') + ' ' + interim);
     };
-    r.onerror = function (e) { if (finished) return; finished = true; rec = null; onDone({ error: e.error || 'unknown' }); };
-    r.onend = function () { if (finished) return; finished = true; rec = null; onDone({ alts: alts }); };
+    r.onerror = function (e) { spoke(); if (finished) return; finished = true; rec = null; onDone({ error: e.error || 'unknown' }); };
+    r.onend = function () { spoke(); if (finished) return; finished = true; rec = null; onDone({ alts: alts }); };
     try { r.start(); rec = r; } catch (e) { finished = true; onDone({ error: 'start' }); }
   }
   function stopListening() { if (rec) { try { rec.stop(); } catch (e) {} } }
@@ -827,7 +848,7 @@
   var P = null;
   function startPlay(kind, obj) {
     hush();
-    var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : kind === 'pack' ? buildPack(obj) : kind === 'place' ? buildPlace() : buildCheck(obj);
+    var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : kind === 'pack' ? buildPack(obj) : kind === 'place' ? buildPlace() : kind === 'sreview' ? buildSReview() : buildCheck(obj);
     P = { kind: kind, obj: obj, queue: items.slice(), total: items.length, step: 0, planned: items.length, confirmQuit: false, finished: 0, right: 0, scored: 0, phase: 'answer', sel: null, line: [], tries: 0, missed: [] };
     items.forEach(function (it) { it.first = true; });
     playRender();
@@ -910,7 +931,7 @@
     var it = P.queue[0];
     if (!it) { finishPlay(); return; }
     P.phase = 'answer'; P.sel = null; P.line = []; P.tries = 0; P.mm = { sel: null, done: 0, miss: 0 }; P.dictMark = '';
-    var label = P.kind === 'lesson' ? P.obj.title : P.kind === 'mix' ? 'ฝึกรวม' : P.kind === 'pack' ? 'ชุดคำ' + P.obj.title : P.kind === 'place' ? 'แบบทดสอบวัดระดับ' : 'ด่านสอบขั้น ' + (P.obj.si + 1);
+    var label = P.kind === 'lesson' ? P.obj.title : P.kind === 'mix' ? 'ฝึกรวม' : P.kind === 'pack' ? 'ชุดคำ' + P.obj.title : P.kind === 'place' ? 'แบบทดสอบวัดระดับ' : P.kind === 'sreview' ? 'ทวนประโยค' : 'ด่านสอบขั้น ' + (P.obj.si + 1);
     render(
       '<div class="player">' +
         '<div class="container player__bar"><button class="btn btn--icon btn--sm" type="button" data-act="quit" aria-label="ออกจากแบบฝึก">' + I.close + '</button>' +
@@ -935,8 +956,26 @@
     var f = (P.phase === 'feedback' || P.confirmQuit) ? $('#next') : ($('#answer:not([disabled])') || $('.opt:not([disabled])') || $('.tile:not([disabled])') || $('.mic:not([disabled])'));
     if (f) f.focus({ preventScroll: true });
   }
+  /* sentences missed while building, typing or saying them come back on the same schedule as words */
+  function trackSentence(it, right) {
+    if (!it.en || !it.th || !/\s/.test(it.en) || !/^(tiles|speak|type)$/.test(it.t) || P.kind === 'place') return;
+    var c = S.ss[it.en], t = dayIndex();
+    if (P.kind === 'sreview') { if (!c) return; if (right && it.first) { c.b = Math.min(c.b + 1, INT.length - 1); c.d = t + INT[c.b]; } else if (!right) { c.b = 0; c.d = t; } return; }
+    if (!right && it.first) S.ss[it.en] = { th: it.th, b: 0, d: t + 1 };
+  }
+  function dueSentences() { var t = dayIndex(); return Object.keys(S.ss).filter(function (k) { return S.ss[k].d <= t; }); }
+  function buildSReview() {
+    var keys = shuffle(dueSentences()).slice(0, 12), others = keys.map(function (k) { return [k, S.ss[k].th]; });
+    return keys.map(function (k, i) {
+      var sn = [k, S.ss[k].th], mode = i % 3;
+      if (mode === 0 && SRC) return speakItem(sn);
+      if (mode === 1 && tokensOf(k).length <= 10) return transItem(sn, null);
+      return tilesItem(sn, others.filter(function (o) { return o[0] !== k; }).concat(LESSONS[0].sents), false);
+    });
+  }
   function settle(right, scored) {
     var it = P.queue[0];
+    trackSentence(it, right);
     if (P.kind === 'place') { P.byStage = P.byStage || []; P.byStage[it.si] = (P.byStage[it.si] || 0) + (right ? 1 : 0); }
     P.phase = 'feedback'; P.lastRight = right;
     if (it.first && scored !== false) { P.scored++; if (right) P.right++; }
@@ -991,6 +1030,13 @@
           '<div class="actions">' + (okp && nxp ? '<a class="btn btn--primary btn--lg" href="#/pack/' + nxp.id + '">ชุดถัดไป: ' + esc(nxp.title) + '</a>' : '<button class="btn btn--primary btn--lg" type="button" data-act="startpack" data-id="' + o.id + '">ลองอีกรอบ</button>') +
             '<a class="btn" href="#/pack/' + o.id + '">ดูคำในชุดนี้</a><a class="btn" href="#/words">กลับไปคลังคำ</a></div>' +
         '</div>';
+    } else if (P.kind === 'sreview') {
+      xp = 6 + Math.round(score / 10); addXP(xp); save();
+      var left = dueSentences().length;
+      html = '<div class="result"><p class="result__big" data-pass="' + (score >= 60) + '"><b class="num">' + score + '%</b><span>ทวนประโยค</span></p>' +
+        '<h1>' + (score >= 80 ? 'ประโยคเหล่านี้เริ่มติดปากแล้ว' : 'ประโยคที่ยังพลาดจะกลับมาให้ฝึกอีก') + '</h1>' +
+        '<p class="lead">' + (left ? 'ยังเหลือประโยคที่ถึงรอบทวนอีก ' + left + ' ประโยค' : 'ทวนครบทุกประโยคที่ถึงรอบแล้ว ระบบจะชวนกลับมาเมื่อใกล้ลืม') + '</p>' +
+        '<div class="actions">' + (left ? '<a class="btn btn--primary btn--lg" href="#/sreview">ทวนต่ออีกชุด</a>' : '<a class="btn btn--primary btn--lg" href="#/">กลับไปเส้นทาง</a>') + '<a class="btn" href="#/review">ไปทวนคำศัพท์</a></div></div>';
     } else if (P.kind === 'place') {
       /* placed at the first stage where fewer than three of four were right */
       var bs = P.byStage || [], lvlp = 0;
@@ -1152,15 +1198,16 @@
   /* ---------------- review ---------------- */
   var R = null;
   function viewReview() {
+    var sdue = dueSentences().length, sBox = sdue ? '<p class="notice">มีประโยคที่ถึงรอบทวน ' + sdue + ' ประโยค&ensp;<a href="#/sreview">ทวนประโยค</a></p>' : '';
     var all = Object.keys(S.srs).filter(function (k) { return CARD[k]; });
     if (!all.length) {
-      render('<div class="view container"><div class="view__head"><h1>ทวนคำศัพท์</h1></div><div class="empty sheet"><h2>ยังไม่มีคำให้ทวน</h2><p>ทุกครั้งที่ผ่านบทเรียน คำศัพท์ของบทนั้นจะเข้ามาที่นี่ แล้วระบบจะชวนทวนในวันที่ใกล้ลืมพอดี</p><a class="btn btn--primary" href="#/">ไปเรียนบทแรก</a></div></div>');
+      render('<div class="view container"><div class="view__head"><h1>ทวนคำศัพท์</h1></div>' + sBox + '<div class="empty sheet"><h2>ยังไม่มีคำให้ทวน</h2><p>ทุกครั้งที่ผ่านบทเรียน คำศัพท์ของบทนั้นจะเข้ามาที่นี่ แล้วระบบจะชวนทวนในวันที่ใกล้ลืมพอดี</p><a class="btn btn--primary" href="#/">ไปเรียนบทแรก</a></div></div>');
       return;
     }
     var due = dueCards();
     if (!due.length && !R) {
       var t = dayIndex(), tomorrow = all.filter(function (k) { return S.srs[k].d === t + 1; }).length;
-      render('<div class="view container"><div class="view__head"><h1>ทวนคำศัพท์</h1></div><div class="empty sheet"><h2>วันนี้ทวนครบแล้ว</h2><p>คำในคลัง ' + all.length + ' คำ พรุ่งนี้มีคิวทวน ' + tomorrow + ' คำ ระหว่างนี้ลองฝึกพูดประโยคจากบทที่เรียนแล้ว</p><div class="actions"><a class="btn btn--primary" href="#/mix">ฝึกรวมจุดที่ยังไม่แม่น</a><a class="btn" href="#/speak">ฝึกพูด</a><button class="btn" type="button" data-act="cram">ทวนทั้งหมดอีกรอบ</button></div></div></div>');
+      render('<div class="view container"><div class="view__head"><h1>ทวนคำศัพท์</h1></div>' + sBox + '<div class="empty sheet"><h2>วันนี้ทวนครบแล้ว</h2><p>คำในคลัง ' + all.length + ' คำ พรุ่งนี้มีคิวทวน ' + tomorrow + ' คำ ระหว่างนี้ลองฝึกพูดประโยคจากบทที่เรียนแล้ว</p><div class="actions"><a class="btn btn--primary" href="#/mix">ฝึกรวมจุดที่ยังไม่แม่น</a><a class="btn" href="#/speak">ฝึกพูด</a><button class="btn" type="button" data-act="cram">ทวนทั้งหมดอีกรอบ</button></div></div></div>');
       return;
     }
     if (!R) R = { cards: shuffle(due).slice(0, 30), i: 0, shown: false, n: 0 };
@@ -1259,9 +1306,128 @@
     setTimeout(function () { if (document.body.dataset.view !== 'speak' || SP.mode !== 'role') return; roleAdvance(d); viewSpeak(); var f = $('.turn .opt, .turn .mic, .turn .btn'); if (f) f.focus({ preventScroll: true }); }, wait);
   }
   function speakSentences(si) { return C[si].lessons.reduce(function (a, l) { return a.concat(l.sents.map(function (s) { return { s: s, l: l }; })); }, []); }
+  /* ---- shadowing: ten sentences in a row, listen at full speed and say it straight back ---- */
+  var SF = null;
+  function flowCard() {
+    if (!SF || !SF.on) {
+      var last = SF && SF.res ? SF.res : null;
+      var avg = last && last.length ? Math.round(last.reduce(function (a, r) { return a + r.p; }, 0) / last.length) : null;
+      return '<div class="speak__card sheet"><h2>ชาโดว์ต่อเนื่อง 10 ประโยค</h2><p>ระบบอ่านประโยคด้วยความเร็วปกติ แล้วเปิดไมค์ให้พูดตามทันที ไม่หยุดให้คิด ฝึกจังหวะและความลื่นแบบเจ้าของภาษา' + (SRC ? '' : ' (เบราว์เซอร์นี้ตรวจเสียงไม่ได้ ระบบจะเว้นช่วงให้พูดตามแทน)') + '</p>' +
+        (avg !== null ? '<p class="score">รอบที่แล้วตรงเฉลี่ย ' + avg + '%</p><ul class="flow__res">' + last.map(function (r) { return '<li data-low="' + (r.p < 70) + '"><span lang="en">' + esc(r.en) + '</span> <b class="num">' + r.p + '%</b></li>'; }).join('') + '</ul>' : '') +
+        '<div class="speak__row"><button class="btn btn--primary btn--lg" type="button" data-act="flowgo" data-slow="0"' + (TTS ? '' : ' disabled') + '>เริ่มความเร็วปกติ</button><button class="btn" type="button" data-act="flowgo" data-slow="1"' + (TTS ? '' : ' disabled') + '>เริ่มแบบช้า</button></div></div>';
+    }
+    var cur = SF.list[SF.i];
+    return '<div class="speak__card sheet" data-flow="' + SF.phase + '"><p class="muted small num">ประโยค ' + (SF.i + 1) + ' / ' + SF.list.length + '</p><h2 lang="en">' + esc(cur.s[0]) + '</h2>' + (SP.hideTh ? '' : '<p class="speak__th">' + esc(cur.s[1]) + '</p>') +
+      '<p class="flow__state" aria-live="polite">' + (SF.phase === 'listen' ? 'ฟัง...' : SF.phase === 'speak' ? 'พูดตามเลย' : SF.note) + '</p><p class="heard" id="heard" aria-live="polite"></p>' +
+      '<div class="speak__row"><button class="btn" type="button" data-act="flowstop">หยุด</button></div></div>';
+  }
+  function flowStep() {
+    if (!SF || !SF.on || document.body.dataset.view !== 'speak' || SP.mode !== 'flow') { if (SF) SF.on = false; return; }
+    if (SF.i >= SF.list.length) { SF.on = false; addXP(4); SF.res.filter(function (r) { return r.p < 60; }).forEach(function (r) { if (!S.ss[r.en]) S.ss[r.en] = { th: r.th, b: 0, d: dayIndex() + 1 }; }); save(); viewSpeak(); return; }
+    var cur = SF.list[SF.i], token = SF.token;
+    SF.phase = 'listen'; viewSpeak();
+    sayThen(cur.s[0], SF.slow, function () {
+      if (!SF || SF.token !== token || !SF.on) return;
+      SF.phase = 'speak'; var st = $('.flow__state'); if (st) st.textContent = 'พูดตามเลย';
+      var card = $('[data-flow]'); if (card) card.setAttribute('data-flow', 'speak');
+      var next = function (p) { SF.res.push({ en: cur.s[0], th: cur.s[1], p: p }); SF.phase = 'note'; SF.i++; setTimeout(function () { if (SF && SF.token === token) flowStep(); }, 1300); };
+      if (!SRC) { var t0 = Date.now(); setTimeout(function () { addSpeak((Date.now() - t0) / 1000 * 0.7); SF.note = 'ต่อไป'; next(0); }, 1200 + cur.s[0].length * 90); return; }
+      var out = $('#heard');
+      listen(function (t) { if (out) out.textContent = t; }, function (res) {
+        if (!SF || SF.token !== token) return;
+        if (res.error && res.error !== 'no-speech') { SF.on = false; SF.note = micError(res.error); viewSpeak(); return; }
+        var r = compare(cur.s[0], heardCandidates(res.alts || [])), p = Math.round(r.score * 100);
+        SF.note = p >= 85 ? 'ลื่นมาก ' + p + '%' : p >= 60 ? 'ดี ' + p + '%' : 'ยังไม่ชัด ' + p + '% ประโยคนี้จะกลับมาให้ทวน';
+        if (out) out.innerHTML = markWords(cur.s[0], r.ok);
+        var st2 = $('.flow__state'); if (st2) st2.textContent = SF.note;
+        next(p);
+      });
+    });
+  }
+
+  /* ---- timed talk: speak on a topic for 30 to 90 seconds without stopping ---- */
+  var ST = { lvl: 'A1', i: 0, dur: 60, phase: 'idle', text: '', interim: '', left: 0, url: null, words: 0, wpm: 0 };
+  var stTimer = 0, stRec = null, stMedia = null;
+  function topicLevelFor() { var c = String(C[Math.min(currentStageIndex(), C.length - 1)].cefr || ''); var hit = LEVELS.filter(function (l) { return c.indexOf(l) !== -1 && c.indexOf('Pre') === -1; }); return hit[hit.length - 1] || 'A1'; }
+  function topicList() { if (!ST.picked) { ST.lvl = topicLevelFor(); ST.picked = true; }
+    return (window.TOPICS || []).filter(function (t) { return t.lvl === ST.lvl; }); }
+  function topicCard() {
+    var list = topicList(); ST.i = clamp(ST.i, 0, Math.max(0, list.length - 1));
+    var tp = list[ST.i];
+    if (!tp) return '<div class="speak__card sheet"><p>ยังไม่มีหัวข้อในระดับนี้</p></div>';
+    var lv = '<div class="seg" role="group" aria-label="ระดับหัวข้อ">' + LEVELS.map(function (l) { return '<button type="button" data-act="stlvl" data-l="' + l + '" aria-pressed="' + (ST.lvl === l) + '"' + (ST.phase === 'run' ? ' disabled' : '') + '>' + l + '</button>'; }).join('') + '</div>';
+    var h = '<div class="speak__card sheet">' + lv + '<h2 lang="en">' + esc(tp.q) + '</h2><p class="speak__th">' + esc(tp.th) + '</p>';
+    if (ST.phase === 'run') {
+      h += '<p class="topic__clock num" id="st-clock" aria-live="off">' + ST.left + '</p><p class="small muted">พูดไปเรื่อย ๆ ไม่ต้องหยุดแก้ ถ้านึกคำไม่ออกให้อธิบายด้วยคำง่าย ๆ</p>' +
+        '<p class="heard" id="heard" lang="en" aria-live="polite">' + esc(ST.text + ' ' + ST.interim) + '</p><div class="speak__row"><button class="btn" type="button" data-act="ststop">จบก่อนเวลา</button></div>';
+    } else if (ST.phase === 'done') {
+      h += '<dl class="facts"><div><dt>พูดได้</dt><dd>' + ST.words + '<small> คำ</small></dd></div><div><dt>ความเร็ว</dt><dd>' + ST.wpm + '<small> คำ/นาที</small></dd></div><div><dt>เวลา</dt><dd>' + ST.used + '<small> วินาที</small></dd></div></dl>' +
+        '<p class="small">' + (ST.wpm >= 100 ? 'เร็วระดับคุยสบาย ๆ แล้ว ลองใช้คำเชื่อมให้หลากหลายขึ้น' : ST.wpm >= 60 ? 'กำลังดี พูดซ้ำหัวข้อเดิมอีกรอบ ความเร็วจะเพิ่มขึ้นเอง' : 'ยังมีช่วงหยุดคิดเยอะ ลองดูวลีช่วยแล้วพูดหัวข้อนี้อีกรอบ') + '</p>' +
+        (ST.text ? '<p class="heard" lang="en">' + esc(ST.text) + '</p>' : '') + (ST.url ? '<audio controls src="' + ST.url + '"></audio>' : '') +
+        '<details class="topic__sample"><summary>ดูตัวอย่างคำตอบ</summary><p lang="en">' + esc(tp.sample) + '</p>' + (TTS ? sayBtn(tp.sample, 'ฟังตัวอย่าง') : '') + '</details>' +
+        '<div class="speak__row"><button class="btn btn--primary" type="button" data-act="stgo">พูดหัวข้อนี้อีกรอบ</button><button class="btn" type="button" data-act="stnext">หัวข้อถัดไป</button></div>';
+    } else {
+      h += '<p class="small muted">วลีช่วยเริ่ม</p><ul class="topic__help" lang="en">' + tp.help.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+        '<div class="speak__row"><div class="seg" role="group" aria-label="เวลา">' + [30, 60, 90].map(function (d) { return '<button type="button" data-act="stdur" data-d="' + d + '" aria-pressed="' + (ST.dur === d) + '">' + d + ' วินาที</button>'; }).join('') + '</div>' +
+        '<button class="btn btn--primary btn--lg" type="button" data-act="stgo"' + (SRC || (window.MediaRecorder && navigator.mediaDevices) ? '' : ' disabled') + '>เริ่มพูด</button></div>' +
+        '<div class="speak__nav"><button class="btn" type="button" data-act="stprev"' + (ST.i === 0 ? ' disabled' : '') + '>หัวข้อก่อนหน้า</button><span class="muted num">' + (ST.i + 1) + ' / ' + list.length + '</span><button class="btn" type="button" data-act="stnext"' + (ST.i >= list.length - 1 ? ' disabled' : '') + '>หัวข้อถัดไป</button></div>';
+    }
+    return h + '</div>';
+  }
+  function topicStart() {
+    ST.phase = 'run'; ST.text = ''; ST.interim = ''; ST.left = ST.dur; ST.t0 = Date.now();
+    if (ST.url) { URL.revokeObjectURL(ST.url); ST.url = null; }
+    hush(); viewSpeak();
+    var token = ST.t0;
+    stTimer = setInterval(function () {
+      ST.left = Math.max(0, ST.dur - Math.round((Date.now() - ST.t0) / 1000));
+      var c = $('#st-clock'); if (c) c.textContent = ST.left;
+      if (ST.left <= 0 || document.body.dataset.view !== 'speak') topicStop();
+    }, 250);
+    if (window.MediaRecorder && navigator.mediaDevices) {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+        if (ST.t0 !== token || ST.phase !== 'run') { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        var chunks = []; stMedia = new MediaRecorder(stream);
+        stMedia.ondataavailable = function (e) { chunks.push(e.data); };
+        stMedia.onstop = function () { stream.getTracks().forEach(function (t) { t.stop(); }); ST.url = URL.createObjectURL(new Blob(chunks, { type: stMedia.mimeType || 'audio/webm' })); stMedia = null; if (ST.phase === 'done') viewSpeak(); };
+        stMedia.start();
+      }).catch(function () {});
+    }
+    if (SRC) (function run() {
+      if (ST.phase !== 'run' || ST.t0 !== token) return;
+      var r = new SRC(); stRec = r;
+      r.lang = 'en-US'; r.continuous = true; r.interimResults = true;
+      r.onresult = function (e) {
+        var interim = '';
+        for (var i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) ST.text = (ST.text + ' ' + e.results[i][0].transcript).trim(); else interim += e.results[i][0].transcript; }
+        ST.interim = interim; var hd = $('#heard'); if (hd) hd.textContent = ST.text + ' ' + interim;
+      };
+      r.onend = function () { stRec = null; if (ST.phase === 'run' && ST.t0 === token) setTimeout(run, 120); };
+      r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { ST.phase = 'idle'; clearInterval(stTimer); viewSpeak(); var hd = $('#heard'); if (hd) hd.textContent = micError(e.error); } };
+      try { r.start(); } catch (e) {}
+    })();
+  }
+  function topicStop() {
+    if (ST.phase !== 'run') return;
+    clearInterval(stTimer); ST.phase = 'done';
+    if (ST.interim) ST.text = (ST.text + ' ' + ST.interim).trim();
+    ST.interim = '';
+    if (stRec) { try { stRec.stop(); } catch (e) {} stRec = null; }
+    if (stMedia && stMedia.state === 'recording') stMedia.stop();
+    ST.used = Math.max(1, Math.round((Date.now() - ST.t0) / 1000));
+    ST.words = tokensOf(ST.text).length; ST.wpm = Math.round(ST.words / (ST.used / 60));
+    addSpeak(ST.used); addXP(Math.min(10, 2 + Math.floor(ST.words / 15)));
+    if (document.body.dataset.view === 'speak') viewSpeak();
+  }
+
+  function speakStats() {
+    var today = spokeToday(), pct = Math.min(1, today / SPEAK_GOAL);
+    return '<div class="spk"><p><b>วันนี้พูดไป ' + mins(today) + '</b> จากเป้า 5 นาที&ensp;<span class="muted">7 วันล่าสุด ' + mins(spokeWeek()) + '</span></p><span class="pack__meter" aria-hidden="true"><i style="--p:' + pct + '"></i></span></div>';
+  }
   function viewSpeak() {
     if (SP.si === null || !stageOpen(SP.si)) SP.si = Math.min(currentStageIndex(), C.length - 1);
     if (!stageOpen(SP.si)) SP.si = 0;
+    if (SP.mode === 'flow' || SP.mode === 'topic') return viewSpeak2();
     var list = SP.mode === 'shadow' ? speakSentences(SP.si) : SP.mode === 'role' ? C[SP.si].dialogs : C[SP.si].talk;
     SP.i = clamp(SP.i, 0, list.length - 1);
     var pills = '<div class="field field--inline"><label for="sp-level">ระดับ</label><select class="input" id="sp-level" data-act="splevel">' + C.map(function (st, si) { var o = stageOpen(si); return '<option value="' + si + '"' + (si === SP.si ? ' selected' : '') + (o ? '' : ' disabled') + '>ขั้น ' + (si + 1) + ' ' + esc(st.name) + (o ? '' : ' (ยังล็อก)') + '</option>'; }).join('') + '</select></div>';
@@ -1287,12 +1453,23 @@
     }
     render('<div class="view container speak">' +
       '<div class="view__head" style="margin:0"><h1>ห้องฝึกพูด</h1><p>พูดออกเสียงจริงทุกวันคือทางลัดสู่ความคล่อง ฟัง พูดตาม แล้วดูว่าระบบได้ยินตรงแค่ไหน</p></div>' +
-      '<div class="speak__controls"><div class="seg" role="group" aria-label="โหมด"><button type="button" data-act="spmode" data-m="shadow" aria-pressed="' + (SP.mode === 'shadow') + '">พูดตามประโยค</button><button type="button" data-act="spmode" data-m="talk" aria-pressed="' + (SP.mode === 'talk') + '">ตอบคำถาม</button><button type="button" data-act="spmode" data-m="role" aria-pressed="' + (SP.mode === 'role') + '">บทสนทนา</button></div>' +
-      pills + '</div>' + support + card +
+      speakStats() + '<div class="speak__controls">' + speakModes() + pills + '</div>' + support + card +
       '<div class="speak__nav"><button class="btn" type="button" data-act="spprev"' + (SP.i === 0 ? ' disabled' : '') + '>ก่อนหน้า</button>' +
       '<span class="muted num">' + (SP.i + 1) + ' / ' + list.length + '</span>' +
       (SP.mode === 'shadow' ? '<label class="check small"><input type="checkbox" data-act="sphide"' + (SP.hideTh ? ' checked' : '') + '>ซ่อนคำแปล</label>' : '') +
       '<button class="btn" type="button" data-act="spnext"' + (SP.i >= list.length - 1 ? ' disabled' : '') + '>ถัดไป</button></div>' +
+      '</div>', { keepScroll: true, focus: false });
+  }
+  function speakModes() {
+    return '<div class="seg" role="group" aria-label="โหมด">' + [['shadow', 'พูดตามประโยค'], ['flow', 'ชาโดว์ต่อเนื่อง'], ['topic', 'พูดจับเวลา'], ['talk', 'ตอบคำถาม'], ['role', 'บทสนทนา']].map(function (m) {
+      return '<button type="button" data-act="spmode" data-m="' + m[0] + '" aria-pressed="' + (SP.mode === m[0]) + '"' + ((SF && SF.on) || ST.phase === 'run' ? ' disabled' : '') + '>' + m[1] + '</button>'; }).join('') + '</div>';
+  }
+  function viewSpeak2() {
+    var pills = SP.mode === 'flow' ? '<div class="field field--inline"><label for="sp-level">ประโยคจาก</label><select class="input" id="sp-level" data-act="splevel"' + (SF && SF.on ? ' disabled' : '') + '>' + C.map(function (st, si) { var o = stageOpen(si); return '<option value="' + si + '"' + (si === SP.si ? ' selected' : '') + (o ? '' : ' disabled') + '>ขั้น ' + (si + 1) + ' ' + esc(st.name) + (o ? '' : ' (ยังล็อก)') + '</option>'; }).join('') + '</select></div>' : '';
+    render('<div class="view container speak">' +
+      '<div class="view__head" style="margin:0"><h1>ห้องฝึกพูด</h1><p>' + (SP.mode === 'flow' ? 'ฟังแล้วพูดตามทันทีต่อเนื่องกัน ฝึกปากให้ชินกับความเร็วจริง' : 'เลือกหัวข้อ กดเริ่ม แล้วพูดไปเรื่อย ๆ จนหมดเวลา จบแล้วฟังเสียงตัวเองและเทียบกับตัวอย่าง') + '</p></div>' +
+      speakStats() + '<div class="speak__controls">' + speakModes() + pills + '</div>' +
+      (SP.mode === 'flow' ? flowCard() + '<div class="speak__nav"><span></span><label class="check small"><input type="checkbox" data-act="sphide"' + (SP.hideTh ? ' checked' : '') + '>ซ่อนคำแปล</label><span></span></div>' : topicCard()) +
       '</div>', { keepScroll: true, focus: false });
   }
   var mediaRec = null;
@@ -1324,7 +1501,9 @@
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       var chunks = []; mediaRec = new MediaRecorder(stream);
       mediaRec.ondataavailable = function (e) { chunks.push(e.data); };
+      var recAt = Date.now();
       mediaRec.onstop = function () {
+        addSpeak((Date.now() - recAt) / 1000);
         stream.getTracks().forEach(function (t) { t.stop(); });
         if (SP.mediaUrl) URL.revokeObjectURL(SP.mediaUrl);
         SP.mediaUrl = URL.createObjectURL(new Blob(chunks, { type: mediaRec.mimeType || 'audio/webm' }));
@@ -1436,7 +1615,7 @@
     }).join('');
     render('<div class="view container">' +
       '<div class="view__head"><h1>สถิติของคุณ</h1><p>' + (ME ? 'ทุกตัวเลขเป็นของบัญชี ' + esc(ME.name) + (cloudOn() ? ' เข้าจากเครื่องไหนก็เห็นเหมือนกัน' : ' ในเบราว์เซอร์เครื่องนี้') : 'ทุกตัวเลขนับจากการเรียนในเบราว์เซอร์เครื่องนี้') + '</p></div>' +
-      '<dl class="stats"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + '<small>วัน</small></dd></div><div><dt>แต้มรวม</dt><dd title="' + fmt(S.xp) + ' แต้ม">' + fmtBig(S.xp) + '</dd></div><div><dt>บทที่ผ่าน</dt><dd>' + totalDone() + '<small>/ ' + LESSONS.length + '</small></dd></div><div><dt>คำในคลัง</dt><dd>' + fmt(keys.length) + '</dd></div><div><dt>จำได้แม่น</dt><dd>' + fmt(strong) + '<small>คำ</small></dd></div></dl>' +
+      '<dl class="stats"><div><dt>ต่อเนื่อง</dt><dd>' + streak() + '<small>วัน</small></dd></div><div><dt>แต้มรวม</dt><dd title="' + fmt(S.xp) + ' แต้ม">' + fmtBig(S.xp) + '</dd></div><div><dt>บทที่ผ่าน</dt><dd>' + totalDone() + '<small>/ ' + LESSONS.length + '</small></dd></div><div><dt>คำในคลัง</dt><dd>' + fmt(keys.length) + '</dd></div><div><dt>จำได้แม่น</dt><dd>' + fmt(strong) + '<small>คำ</small></dd></div><div><dt>พูด 7 วัน</dt><dd>' + Math.round(spokeWeek() / 60) + '<small>นาที</small></dd></div></dl>' +
       '<div class="panel-grid"><div>' +
         '<h2 class="section-h">16 สัปดาห์ที่ผ่านมา</h2><div class="heat" role="img" aria-label="ปฏิทินการเรียน เรียนไปแล้ว ' + activeDays + ' วัน">' + cells.join('') + '</div>' +
         '<p class="heat-key">ไม่ได้เรียน <i></i><i></i><i></i><i></i> ครบเป้า</p>' +
@@ -1625,6 +1804,7 @@
     if (v === 'words') return viewWords();
     if (v === 'read' && a && READBY[a]) { setNav('read'); viewRead(READBY[a]); document.title = 'Reading: ' + READBY[a].en + ' | Speakeasy'; return; }
     if (v === 'read') { document.title = 'Reading | Speakeasy'; return viewReadList(); }
+    if (v === 'sreview') { document.title = 'Sentence review | Speakeasy'; setNav('review'); if (!dueSentences().length) { location.replace('#/review'); return; } startPlay('sreview', null); return; }
     if (v === 'placement') { document.title = 'Placement test | Speakeasy'; setNav('home'); startPlay('place', null); return; }
     if (v === 'pack' && VBYID[a]) { setNav('words'); viewPack(VBYID[a]); document.title = 'Words: ' + VBYID[a].en + ' (' + VBYID[a].lvl + ') | Speakeasy'; return; }
     if (v === 'progress') return viewProgress();
@@ -1665,6 +1845,14 @@
       case 'reveal': if (R) { R.shown = true; reviewRender(); } break;
       case 'rate': if (R && R.shown) rateCard(+el.getAttribute('data-r')); break;
       case 'cram': { var all = Object.keys(S.srs).filter(function (k) { return CARD[k]; }); R = { cards: shuffle(all).slice(0, 30), i: 0, shown: false, n: 0 }; reviewRender(); break; }
+      case 'flowgo': (function () { var pool = shuffle(speakSentences(SP.si)).filter(function (x) { return tokensOf(x.s[0]).length <= 12; }); SF = { on: true, list: pool.slice(0, 10), i: 0, res: [], slow: el.getAttribute('data-slow') === '1', phase: 'listen', note: '', token: Date.now() }; flowStep(); })(); break;
+      case 'flowstop': if (SF) { SF.on = false; SF.token = 0; } stopListening(); hush(); viewSpeak(); break;
+      case 'stgo': topicStart(); break;
+      case 'ststop': topicStop(); break;
+      case 'stdur': ST.dur = +el.getAttribute('data-d'); viewSpeak(); break;
+      case 'stlvl': ST.picked = true; ST.lvl = el.getAttribute('data-l'); ST.i = 0; ST.phase = 'idle'; viewSpeak(); break;
+      case 'stnext': ST.i++; ST.phase = 'idle'; viewSpeak(); break;
+      case 'stprev': ST.i--; ST.phase = 'idle'; viewSpeak(); break;
       case 'spmode': SP.mode = el.getAttribute('data-m'); SP.i = 0; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); break;
       case 'spstage': SP.si = +el.getAttribute('data-si'); SP.i = 0; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); break;
       case 'spprev': SP.i--; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); break;
