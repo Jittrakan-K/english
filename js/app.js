@@ -481,7 +481,7 @@
     if (fresh) {
       h1 = 'เริ่มจากศูนย์<br>วันละบทก็พูดได้';
       lead_ = 'บทแรกใช้เวลาราวสิบนาที ฟังเสียงจริงแล้วพูดตามได้ทันที';
-      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + LESSONS[0].id + '">เริ่มบทแรก</a><a class="btn btn--line" href="#/check/s0">เคยเรียนแล้ว สอบข้ามขั้น</a>';
+      actions = '<a class="btn btn--primary btn--lg" href="#/lesson/' + LESSONS[0].id + '">เริ่มบทแรก</a><a class="btn btn--line" href="#/placement">เคยเรียนมาบ้าง วัดระดับก่อน</a>';
     } else if (cur) {
       h1 = 'วันนี้มาเรียน<br>' + esc(cur.title);
       lead_ = esc(cur.goal);
@@ -717,6 +717,16 @@
   }
   function matchItem(ws, more) { return { t: 'match', q: 'จับคู่คำศัพท์กับความหมาย', pairs: matchSet(ws.concat(more || []), 5) }; }
   function dictItem(s) { return { t: 'type', q: 'ฟังแล้วพิมพ์ประโยคที่ได้ยิน', listen: s[0], dict: true, ans: s[0], en: s[0], th: s[1] }; }
+  /* write the whole sentence in English from the Thai: the lesson words in it are offered as a hint */
+  function transItem(s, l) {
+    var lw = (l && l.words || []).filter(function (w) { return (' ' + norm(s[0])).indexOf(' ' + norm(w[0])) !== -1 && norm(w[0]).length > 2; }).map(function (w) { return w[0]; });
+    return { t: 'type', trans: true, q: 'แปลประโยคนี้เป็นภาษาอังกฤษ', bigTh: s[1], ans: s[0], en: s[0], th: s[1], hint: lw.slice(0, 3).join(', ') };
+  }
+  var CONTR = { "i'm": 'i am', "you're": 'you are', "we're": 'we are', "they're": 'they are', "he's": 'he is', "she's": 'she is', "it's": 'it is', "that's": 'that is', "there's": 'there is', "what's": 'what is', "where's": 'where is', "don't": 'do not', "doesn't": 'does not', "didn't": 'did not', "isn't": 'is not', "aren't": 'are not', "wasn't": 'was not', "weren't": 'were not', "can't": 'cannot', "couldn't": 'could not', "won't": 'will not', "wouldn't": 'would not', "shouldn't": 'should not', "mustn't": 'must not', "haven't": 'have not', "hasn't": 'has not', "i'll": 'i will', "you'll": 'you will', "we'll": 'we will', "they'll": 'they will', "i've": 'i have', "we've": 'we have', "you've": 'you have', "i'd": 'i would', "you'd": 'you would', "let's": 'let us', "there're": 'there are', "who's": 'who is', "how's": 'how is', "here's": 'here is' };
+  /* I'm = I am, can't = cannot = can not: written either way, a sentence counts as the same */
+  function sentKey(x) {
+    return norm(spoken(String(x).replace(/[’‘]/g, "'"))).split(' ').map(function (t) { return CONTR[t] || t; }).join(' ').replace(/\bcan not\b/g, 'cannot');
+  }
   function shortSent(list) { return shuffle(list.filter(function (s) { var n = tokensOf(s[0]).length; return n >= 3 && n <= 8; }))[0]; }
   function withKey(it, l, w) { if (l && w) it.k = l.id + '|' + w[0]; return it; }
 
@@ -737,6 +747,8 @@
       if (ds && Math.random() < 0.5) sents.push(dictItem(ds));
       else if (Ss[2]) sents.push(tilesItem(Ss[2], l.sents.filter(function (o) { return o !== Ss[2]; }), true));
     }
+    var ts = shortSent(l.sents.filter(function (x) { return Ss.slice(0, 3).indexOf(x) === -1; }));
+    if (ts && l.si >= 1) sents.push(transItem(ts, l));
     var out = shuffle(vocab).concat(shuffle(sents));
     if (SRC) out.push(speakItem(Ss[3] || Ss[0] || l.sents[0]));
     return out;
@@ -757,6 +769,16 @@
     items.splice(7, 0, matchItem(shuffle(pk.words), shuffle(pool)));
     items.splice(15, 0, matchItem(shuffle(pk.words), shuffle(pool)));
     return items;
+  }
+  /* placement: four gap-fills per stage, easiest first; no second tries, so the score is a fair reading */
+  function buildPlace() {
+    var out = [];
+    (window.PLACEMENT || []).forEach(function (group, si) {
+      group.forEach(function (q) {
+        out.push({ t: 'mcq', q: 'เลือกคำที่เติมแล้วถูกต้อง (ขั้น ' + (si + 1) + ')', cloze: q[0].replace('___', '_____'), clozeTh: 'ไม่แน่ใจก็เดาได้ ระบบจะวางระดับจากข้อที่ตอบถูกส่วนใหญ่', opts: shuffle(q[1].slice()), ans: q[1][q[2]], si: si });
+      });
+    });
+    return out;
   }
   function buildCheck(st) {
     var pool = stageWords(st.si), all = [], sentPool = st.lessons.reduce(function (a, l) { return a.concat(l.sents); }, []);
@@ -805,7 +827,7 @@
   var P = null;
   function startPlay(kind, obj) {
     hush();
-    var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : kind === 'pack' ? buildPack(obj) : buildCheck(obj);
+    var items = kind === 'lesson' ? buildLesson(obj) : kind === 'mix' ? buildMix() : kind === 'pack' ? buildPack(obj) : kind === 'place' ? buildPlace() : buildCheck(obj);
     P = { kind: kind, obj: obj, queue: items.slice(), total: items.length, step: 0, planned: items.length, confirmQuit: false, finished: 0, right: 0, scored: 0, phase: 'answer', sel: null, line: [], tries: 0, missed: [] };
     items.forEach(function (it) { it.first = true; });
     playRender();
@@ -840,7 +862,7 @@
       h += '<div class="tiles"><div class="tiles__line" id="line" aria-label="ประโยคที่เรียง" aria-live="polite"></div><div class="tiles__bank" role="group" aria-label="คำให้เลือก">' +
         it.bank.map(function (t, i) { return '<button class="tile" type="button" data-act="tile" data-k="' + i + '" lang="en">' + esc(t) + '</button>'; }).join('') + '</div></div>';
     } else if (it.t === 'type') {
-      h += (it.dict ? listenHTML(it.listen) : '<div class="task__big"><h2 class="task__th">' + esc(it.bigTh) + '</h2>' + sayBtn(it.hintSay, 'ฟังเป็นตัวช่วย') + '</div>') +
+      h += (it.dict ? listenHTML(it.listen) : '<div class="task__big"><h2 class="task__th">' + esc(it.bigTh) + '</h2>' + (it.trans ? '' : sayBtn(it.hintSay, 'ฟังเป็นตัวช่วย')) + '</div>') + (it.trans && it.hint ? '<p class="task__hint">คำช่วย: <span lang="en">' + esc(it.hint) + '</span></p>' : '') +
         '<div class="field"><label for="answer">คำตอบภาษาอังกฤษ</label><input class="input input--big" id="answer" name="answer" type="text" lang="en" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>';
     } else if (it.t === 'speak') {
       h += '<div class="task__big"><h2 lang="en">' + esc(it.en) + '</h2>' + sayBtn(it.en) + '</div><p class="task__th">' + esc(it.th) + '</p>' +
@@ -859,12 +881,13 @@
       var body;
       if (it.t === 'match') body = good ? '<p>จับคู่ครบ ' + it.pairs.length + ' คู่' + (P.mm.miss ? ' พลาด ' + P.mm.miss + ' ครั้ง' : ' ไม่พลาดเลย') + '</p>' : '<p>พลาด ' + P.mm.miss + ' ครั้ง คู่ที่ถูกคือ</p><p class="th">' + it.pairs.map(function (w) { return '<span lang="en">' + esc(w[0]) + '</span> = ' + esc(w[1]); }).join('&emsp;') + '</p>';
       else if (it.fix) body = (good ? '<p lang="en">' + esc(it.ans) + '</p>' : '<p>ประโยคที่ถูกคือ <b lang="en">' + esc(it.ans) + '</b></p>') + '<p class="th">' + esc(it.why) + '</p>';
-      else if (it.t === 'tiles' && !good && P.tileDiff) {
+      else if ((it.t === 'tiles' || it.trans) && !good && P.tileDiff) {
         var d = P.tileDiff, en = function (a) { return a.map(function (x) { return '<b lang="en">' + esc(x) + '</b>'; }).join(', '); };
         var why = d.extra.length === 1 && d.missing.length === 1 ? 'ต้องใช้ ' + en(d.missing) + ' ไม่ใช่ ' + en(d.extra)
           : d.extra.length || d.missing.length ? (d.extra.length ? 'คำที่ไม่อยู่ในประโยค: ' + en(d.extra) : '') + (d.extra.length && d.missing.length ? ' / ' : '') + (d.missing.length ? 'ยังขาดคำ: ' + en(d.missing) : '')
           : 'คำครบแล้ว แต่ลำดับยังไม่ถูก';
-        body = '<p>คำตอบคือ <b lang="en">' + esc(it.ans) + '</b></p><p class="th">' + why + '</p>' + (it.th ? '<p class="th">' + esc(it.th) + '</p>' : '');
+        if (it.trans && d.extra.length + d.missing.length > 4) why = 'ลองเทียบกับเฉลยทีละส่วน แล้วพูดประโยคนี้ตามสักสองรอบ';
+        body = '<p>คำตอบคือ <b lang="en">' + esc(it.ans) + '</b></p><p class="th">' + why + '</p>' + (it.trans ? '' : it.th ? '<p class="th">' + esc(it.th) + '</p>' : '');
       }
       else if (it.dict && !good) body = '<p>ที่ถูกคือ <b lang="en">' + esc(it.ans) + '</b></p><p class="th">' + (P.dictMark ? '<span class="heard">' + P.dictMark + '</span>' : '') + '</p><p class="th">' + esc(it.th) + '</p>';
       else body = good
@@ -887,7 +910,7 @@
     var it = P.queue[0];
     if (!it) { finishPlay(); return; }
     P.phase = 'answer'; P.sel = null; P.line = []; P.tries = 0; P.mm = { sel: null, done: 0, miss: 0 }; P.dictMark = '';
-    var label = P.kind === 'lesson' ? P.obj.title : P.kind === 'mix' ? 'ฝึกรวม' : P.kind === 'pack' ? 'ชุดคำ' + P.obj.title : 'ด่านสอบขั้น ' + (P.obj.si + 1);
+    var label = P.kind === 'lesson' ? P.obj.title : P.kind === 'mix' ? 'ฝึกรวม' : P.kind === 'pack' ? 'ชุดคำ' + P.obj.title : P.kind === 'place' ? 'แบบทดสอบวัดระดับ' : 'ด่านสอบขั้น ' + (P.obj.si + 1);
     render(
       '<div class="player">' +
         '<div class="container player__bar"><button class="btn btn--icon btn--sm" type="button" data-act="quit" aria-label="ออกจากแบบฝึก">' + I.close + '</button>' +
@@ -914,6 +937,7 @@
   }
   function settle(right, scored) {
     var it = P.queue[0];
+    if (P.kind === 'place') { P.byStage = P.byStage || []; P.byStage[it.si] = (P.byStage[it.si] || 0) + (right ? 1 : 0); }
     P.phase = 'feedback'; P.lastRight = right;
     if (it.first && scored !== false) { P.scored++; if (right) P.right++; }
     if (!right && it.k && S.srs[it.k]) { S.srs[it.k].b = 0; S.srs[it.k].d = dayIndex(); save(); }
@@ -925,7 +949,7 @@
   function nextItem() {
     var it = P.queue.shift();
     P.step++;
-    if (!P.lastRight && it.first && it.t !== 'speak') { P.planned++; var again = Object.assign({}, it, { first: false }); if (again.bank) again.bank = shuffle(again.bank); if (again.opts && again.t === 'mcq') again.opts = shuffle(again.opts); P.queue.push(again); }
+    if (!P.lastRight && it.first && it.t !== 'speak' && P.kind !== 'place') { P.planned++; var again = Object.assign({}, it, { first: false }); if (again.bank) again.bank = shuffle(again.bank); if (again.opts && again.t === 'mcq') again.opts = shuffle(again.opts); P.queue.push(again); }
     else P.finished++;
     if (!P.lastRight && !it.first) { /* second miss: move on */ }
     playRender();
@@ -966,6 +990,19 @@
           (missp.length ? '<ul class="sents missed">' + missp.map(function (m) { return '<li><button class="sent" type="button" data-act="say" data-text="' + esc(m.en) + '"' + (TTS ? '' : ' disabled') + '>' + I.sound + '<span><span class="sent__en" lang="en">' + esc(m.en) + '</span><span class="sent__th">' + esc(m.th || '') + '</span></span></button></li>'; }).join('') + '</ul>' : '') +
           '<div class="actions">' + (okp && nxp ? '<a class="btn btn--primary btn--lg" href="#/pack/' + nxp.id + '">ชุดถัดไป: ' + esc(nxp.title) + '</a>' : '<button class="btn btn--primary btn--lg" type="button" data-act="startpack" data-id="' + o.id + '">ลองอีกรอบ</button>') +
             '<a class="btn" href="#/pack/' + o.id + '">ดูคำในชุดนี้</a><a class="btn" href="#/words">กลับไปคลังคำ</a></div>' +
+        '</div>';
+    } else if (P.kind === 'place') {
+      /* placed at the first stage where fewer than three of four were right */
+      var bs = P.byStage || [], lvlp = 0;
+      while (lvlp < C.length && (bs[lvlp] || 0) >= 3) lvlp++;
+      var startAt = Math.min(lvlp, C.length - 1), stp = C[startAt];
+      html =
+        '<div class="result">' +
+          '<p class="result__big" data-pass="true"><b class="num">' + (startAt + 1) + '</b><span>ขั้นที่แนะนำ</span></p>' +
+          '<h1>' + (lvlp === 0 ? 'เริ่มจากขั้นแรกจะได้พื้นที่แน่นที่สุด' : 'ระดับของคุณประมาณ ' + C[lvlp - 1].cefr) + '</h1>' +
+          '<p class="lead">' + (lvlp === 0 ? 'ขั้น 1 ปูพื้นตัวอักษร คำทักทาย และประโยคแรก ค่อย ๆ ไปทีละบท' : 'ตอบถูกส่วนใหญ่ถึงขั้น ' + lvlp + ' แนะนำให้เริ่มที่ขั้น ' + (startAt + 1) + ' ' + esc(stp.name) + ' กดยืนยันแล้วขั้นก่อนหน้าจะเปิดให้ทวนได้ตลอด') + '</p>' +
+          '<ol class="place__grid" aria-label="คะแนนแต่ละขั้น">' + C.map(function (st, i) { return '<li' + ((bs[i] || 0) >= 3 ? ' data-pass' : '') + '><span>ขั้น ' + (i + 1) + '</span><b class="num">' + (bs[i] || 0) + '/4</b></li>'; }).join('') + '</ol>' +
+          '<div class="actions">' + (lvlp > 0 ? '<button class="btn btn--primary btn--lg" type="button" data-act="placeaccept" data-si="' + startAt + '">เริ่มที่ขั้น ' + (startAt + 1) + '</button>' : '<a class="btn btn--primary btn--lg" href="#/lesson/' + C[0].lessons[0].id + '">เริ่มบทแรก</a>') + '<a class="btn" href="#/">ดูเส้นทางก่อน</a></div>' +
         '</div>';
     } else if (P.kind === 'mix') {
       xp = 12 + Math.round(score / 10);
@@ -1074,8 +1111,14 @@
     if (!right && it.alts) right = it.alts.some(function (a) { return bare(a) === bare(given); });
     if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
     if (!right && it.t === 'type') right = norm(given).replace(/'/g, '') === norm(it.ans).replace(/'/g, '');
+    if (!right && it.trans) { var pg = sentKey(given), pa = sentKey(it.ans); right = pg === pa || movedTime(pg.split(' '), pa.split(' ')) || movedPlease(pg.split(' '), pa.split(' ')); }
     var line = $('#line'); if (line) line.setAttribute('data-mark', right ? 'right' : 'wrong');
     P.tileDiff = null;
+    if (!right && it.trans) {
+      var want2 = sentKey(it.ans).split(' '), got2 = sentKey(given).split(' '), rest = want2.slice(), extra2 = [];
+      got2.forEach(function (w) { var at = rest.indexOf(w); if (at === -1) extra2.push(w); else rest.splice(at, 1); });
+      P.tileDiff = { extra: extra2, missing: rest };
+    }
     if (!right && it.t === 'tiles') {
       /* name what went wrong: a word that isn't in the sentence, a word left out, or only the order */
       var want = tokensOf(it.ans).map(function (x) { return x.toLowerCase(); }), left = want.slice(), extra = [];
@@ -1424,6 +1467,53 @@
   }
   function setStatus(msg, err) { var s = $('#set-status'); if (!s) return; s.textContent = msg; if (err) s.setAttribute('data-err', ''); else s.removeAttribute('data-err'); }
 
+  /* ---------------- reading (js/data-reading.js) ---------------- */
+  var READ = window.READING || [], READBY = {};
+  READ.forEach(function (r) { READBY[r.id] = r; });
+  var RV = null;
+  function viewReadList() {
+    render('<div class="view container">' +
+      '<div class="view__head"><h1>บทอ่าน</h1><p>เรื่องสั้นจากง่ายไปยาก อ่านจบแล้วตอบคำถาม 4 ข้อ แตะประโยคเพื่อฟังเสียง คำยากมีความหมายให้ใต้เรื่อง</p></div>' +
+      LEVELS.map(function (lv) {
+        var list = READ.filter(function (r) { return r.lvl === lv; });
+        if (!list.length) return '';
+        return '<h2 class="read__lvl">ระดับ ' + lv + '</h2><ul class="packs">' + list.map(function (r) {
+          var d = S.done['r:' + r.id];
+          return '<li><a class="pack" href="#/read/' + r.id + '"' + (d ? ' data-done' : '') + '><span class="pack__lvl">' + r.lvl + '</span><b>' + esc(r.title) + '</b><span class="pack__en" lang="en">' + esc(r.en) + '</span><span class="pack__stat">' + (d ? 'ตอบถูก ' + d.best + '%' : r.qs.length + ' คำถาม') + '</span></a></li>';
+        }).join('') + '</ul>';
+      }).join('') + '</div>', { focus: false });
+  }
+  function viewRead(r) {
+    RV = { id: r.id, got: {}, right: 0 };
+    var next = READ[READ.indexOf(r) + 1];
+    render('<div class="view container read">' +
+      '<div class="view__head"><p class="crumb"><a href="#/read">บทอ่าน</a>&ensp;/&ensp;ระดับ ' + r.lvl + '</p><h1>' + esc(r.title) + '</h1><p lang="en">' + esc(r.en) + '</p></div>' +
+      '<article class="read__text sheet" lang="en">' + r.text.map(function (para) {
+        return '<p>' + (para.match(/[^.!?]+[.!?]+["')]*\s*|[^.!?]+$/g) || [para]).map(function (snt) { snt = snt.trim(); return TTS ? '<span class="read__s" role="button" tabindex="0" data-act="say" data-text="' + esc(snt) + '">' + esc(snt) + '</span>' : esc(snt); }).join(' ') + '</p>';
+      }).join('') + '</article>' +
+      '<h2 class="read__h">คำที่ควรรู้</h2><dl class="read__gloss">' + r.gloss.map(function (g) { return '<div><dt lang="en">' + esc(g[0]) + '</dt><dd>' + esc(g[1]) + '</dd></div>'; }).join('') + '</dl>' +
+      '<h2 class="read__h">คำถาม</h2><ol class="read__qs">' + r.qs.map(function (q, qi) {
+        return '<li><fieldset><legend>' + esc(q.q) + '</legend><div class="opts">' + q.opts.map(function (o, oi) { return '<button class="opt" type="button" data-act="rq" data-q="' + qi + '" data-o="' + oi + '">' + esc(o) + '</button>'; }).join('') + '</div><p class="read__why" id="why-' + qi + '" aria-live="polite"></p></fieldset></li>';
+      }).join('') + '</ol>' +
+      '<div id="read-end" aria-live="polite"></div>' +
+      '<nav class="pager" aria-label="บทอ่านอื่น"><a class="btn" href="#/read">บทอ่านทั้งหมด</a>' + (next ? '<a class="btn" href="#/read/' + next.id + '">บทถัดไป: ' + esc(next.title) + '</a>' : '') + '</nav>' +
+      '</div>', { focus: false });
+  }
+  function readAnswer(btn) {
+    var r = READBY[RV && RV.id]; if (!r) return;
+    var qi = +btn.getAttribute('data-q'), oi = +btn.getAttribute('data-o'), q = r.qs[qi];
+    if (RV.got[qi] !== undefined) return;
+    var ok = oi === q.ans; RV.got[qi] = ok; if (ok) RV.right++;
+    $$('[data-act="rq"][data-q="' + qi + '"]').forEach(function (b) { b.disabled = true; var o = +b.getAttribute('data-o'); if (o === q.ans) b.setAttribute('data-mark', 'right'); else if (o === oi) b.setAttribute('data-mark', 'wrong'); });
+    var w = $('#why-' + qi); if (w) w.innerHTML = '<b>' + (ok ? 'ถูกต้อง' : 'ยังไม่ใช่') + '</b> <span lang="en">' + esc(q.why) + '</span>';
+    if (Object.keys(RV.got).length === r.qs.length) {
+      var pct = Math.round(RV.right / r.qs.length * 100), prev = S.done['r:' + r.id];
+      S.done['r:' + r.id] = { best: Math.max(pct, prev ? prev.best : 0), at: Date.now() };
+      save(); addXP(5 + RV.right * 2);
+      var end = $('#read-end'); if (end) end.innerHTML = '<p class="notice">ตอบถูก ' + RV.right + ' จาก ' + r.qs.length + ' ข้อ' + (pct === 100 ? ' เข้าใจครบทุกข้อ ลองอ่านออกเสียงทั้งเรื่องอีกรอบ' : ' แตะประโยคที่เกี่ยวกับข้อที่พลาดเพื่อฟังซ้ำ') + '</p>';
+    }
+  }
+
   /* ---------------- account ---------------- */
   var AV = { kind: 'in', name: '', note: '', busy: false };
   var AUTH_MSG = {
@@ -1533,6 +1623,9 @@
     if (v === 'review') return viewReview();
     if (v === 'speak') return viewSpeak();
     if (v === 'words') return viewWords();
+    if (v === 'read' && a && READBY[a]) { setNav('read'); viewRead(READBY[a]); document.title = 'Reading: ' + READBY[a].en + ' | Speakeasy'; return; }
+    if (v === 'read') { document.title = 'Reading | Speakeasy'; return viewReadList(); }
+    if (v === 'placement') { document.title = 'Placement test | Speakeasy'; setNav('home'); startPlay('place', null); return; }
     if (v === 'pack' && VBYID[a]) { setNav('words'); viewPack(VBYID[a]); document.title = 'Words: ' + VBYID[a].en + ' (' + VBYID[a].lvl + ') | Speakeasy'; return; }
     if (v === 'progress') return viewProgress();
     if (v === 'account') return viewAccount();
@@ -1551,6 +1644,8 @@
       case 'sayall': { var l = byId[el.getAttribute('data-id')]; hush(); l.sents.forEach(function (s) { say(s[0], false, true); }); break; }
       case 'start': startPlay('lesson', byId[el.getAttribute('data-id')]); break;
       case 'startcheck': startPlay('check', stageById[el.getAttribute('data-id')]); break;
+      case 'placeaccept': (function (si) { for (var i = 0; i < si; i++) S.passed[C[i].id] = true; save(); location.hash = '#/lesson/' + C[si].lessons[0].id; })(+el.getAttribute('data-si')); break;
+      case 'rq': readAnswer(el); break;
       case 'startpack': if (VBYID[el.getAttribute('data-id')]) startPlay('pack', VBYID[el.getAttribute('data-id')]); break;
       case 'wtab': WV.tab = el.getAttribute('data-tab'); viewWords(); break;
       case 'vlvl': WV.lvl = el.getAttribute('data-lvl'); viewWords(); break;
@@ -1653,6 +1748,7 @@
     if (el.id === 'rate') { var v = $('#rate-v'); if (v) v.textContent = (+el.value).toFixed(2); }
   });
   document.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute && e.target.getAttribute('role') === 'button' && e.target.tagName !== 'BUTTON') { e.preventDefault(); e.target.click(); return; }
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     var tag = (e.target.tagName || '').toLowerCase();
     if (P) {

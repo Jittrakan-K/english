@@ -436,6 +436,32 @@ td.nw, td.num { white-space: nowrap; }
 .pack__stat { font-size: var(--text-sm); font-weight: 600; color: var(--color-ink-2); }
 .pager { display: flex; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; margin-top: var(--space-xl); }
 
+/* ---------- reading ---------- */
+.read__lvl { margin: var(--space-xl) 0 var(--space-md); font-size: var(--text-lg); }
+.read__text { max-width: 44rem; padding: var(--space-xl); background: var(--color-white); font-size: var(--text-lg); line-height: 1.8; }
+.read__text p { margin: 0 0 var(--space-md); }
+.read__text p:last-child { margin-bottom: 0; }
+.read__s { padding: 0 var(--space-3xs); border-radius: 4px; cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background-color var(--dur-micro) var(--ease-out); }
+.read__s:hover { background: var(--color-butter); }
+.read__s:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+.read__h { margin: var(--space-xl) 0 var(--space-md); font-size: var(--text-lg); }
+.read__gloss { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: var(--space-sm); max-width: 44rem; margin: 0; }
+.read__gloss div { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-card); background: var(--color-blush); }
+.read__gloss dt { font-weight: 700; }
+.read__gloss dd { margin: 0; font-size: var(--text-sm); }
+.read__qs { display: grid; gap: var(--space-lg); max-width: 44rem; margin: 0; padding-left: var(--space-lg); }
+.read__qs fieldset { margin: 0; padding: 0; border: 0; }
+.read__qs legend { margin-bottom: var(--space-sm); font-weight: 700; }
+.read__why { margin: var(--space-sm) 0 0; font-size: var(--text-sm); }
+.read__why:empty { display: none; }
+
+.place__grid { list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-xs); max-width: 36rem; margin: var(--space-lg) auto; padding: 0; }
+.place__grid li { display: grid; gap: var(--space-3xs); padding: var(--space-sm) var(--space-2xs); border-radius: var(--radius-card); background: var(--color-paper-2); text-align: center; }
+.place__grid li[data-pass] { background: var(--color-mint); }
+.place__grid span { font-size: var(--text-sm); color: var(--color-ink-2); }
+.place__grid b { font-size: var(--text-lg); }
+@media (max-width: 40rem) { .place__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
 /* one centred column: heading, card and footnote share the same axis */
 .acct { display: grid; justify-items: center; }
 .acct .view__head { justify-items: center; text-align: center; max-width: 34rem; }
