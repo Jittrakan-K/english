@@ -762,6 +762,16 @@
   function sentKey(x) {
     return norm(spoken(String(x).replace(/[’‘]/g, "'"))).split(' ').map(function (t) { return CONTR[t] || t; }).join(' ').replace(/\bcan not\b/g, 'cannot');
   }
+  /* Thai leaves out the subject in a price, a time, a place or a description ("หนึ่งร้อยบาท" for "It's one hundred baht"),
+     so the English without "It's" is also a fair answer, unless the Thai says มัน, นี่ or นั่น, or what is left starts
+     with a verb ("going to rain") and needs the "it" to be English */
+  function dropIt(given, ans, th) {
+    if (/มัน|นี่|นั่น/.test(th || '')) return false;
+    var a = sentKey(ans), g = sentKey(given);
+    var m = /^(it|that|this) is (.+)$/.exec(a); if (!m) return false;
+    if (/^(going|raining|snowing|getting|worth|time|about|said|been|not|ok|okay|fine)\b/.test(m[2])) return false;
+    return g === m[2];
+  }
   function shortSent(list) { return shuffle(list.filter(function (s) { var n = tokensOf(s[0]).length; return n >= 3 && n <= 8; }))[0]; }
   function withKey(it, l, w) { if (l && w) it.k = l.id + '|' + w[0]; return it; }
 
@@ -1171,6 +1181,7 @@
     if (!right && it.alts) right = it.alts.some(function (a) { return bare(a) === bare(given); });
     if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
     if (!right && it.t === 'type') right = norm(given).replace(/'/g, '') === norm(it.ans).replace(/'/g, '');
+    if (!right && !it.listen && (it.t === 'tiles' || it.t === 'type')) right = dropIt(given, it.ans, it.th || it.bigTh);
     if (!right && it.trans) { var pg = sentKey(given), pa = sentKey(it.ans); right = pg === pa || movedTime(pg.split(' '), pa.split(' ')) || movedPlease(pg.split(' '), pa.split(' ')); }
     var line = $('#line'); if (line) line.setAttribute('data-mark', right ? 'right' : 'wrong');
     P.tileDiff = null;

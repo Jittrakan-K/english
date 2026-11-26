@@ -542,7 +542,7 @@ lessons: {
     sents: [
       ["Imagine how much time we could save.", "ลองนึกดูว่าเราจะประหยัดเวลาได้แค่ไหน"],
       ["Think about it: what do we really have to lose?", "ลองคิดดูสิ เรามีอะไรต้องเสียจริง ๆ เหรอ"],
-      ["It's worth trying at least once.", "คุ้มที่จะลองอย่างน้อยสักครั้ง"],
+      ["It's worth trying at least once.", "มันคุ้มที่จะลองอย่างน้อยสักครั้ง"],
       ["What if we tried a different approach?", "ถ้าเราลองวิธีอื่นดูล่ะ"],
       ["Ultimately, it's your call.", "ท้ายที่สุดแล้วคุณตัดสินใจเองเลย"]
     ],

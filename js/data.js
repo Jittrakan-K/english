@@ -66,7 +66,7 @@ window.COURSE = [
       ["How old are you?", "คุณอายุเท่าไหร่"],
       ["I am twenty years old.", "ฉันอายุยี่สิบปี"],
       ["My phone number is zero eight one.", "เบอร์โทรของฉันคือศูนย์แปดหนึ่ง"],
-      ["It's fifty baht.", "ห้าสิบบาท"],
+      ["It's fifty baht.", "ราคาห้าสิบบาท"],
       ["I have two cats.", "ฉันมีแมวสองตัว"]
     ],
     pairs: [["fifteen","fifty"],["thirteen","thirty"],["fourteen","forty"]]
@@ -169,7 +169,7 @@ window.COURSE = [
     words: [["Monday","วันจันทร์"],["Friday","วันศุกร์"],["Sunday","วันอาทิตย์"],["weekend","สุดสัปดาห์"],["today","วันนี้"],["tomorrow","พรุ่งนี้"],["yesterday","เมื่อวาน"],["o'clock","นาฬิกา (ตรง)"],["half past","ครึ่ง (เลยมาสามสิบนาที)"],["quarter","สิบห้านาที"]],
     sents: [
       ["What time is it?", "กี่โมงแล้ว"],
-      ["It's half past seven.", "เจ็ดโมงครึ่ง"],
+      ["It's half past seven.", "ตอนนี้เจ็ดโมงครึ่ง"],
       ["The shop opens at nine o'clock.", "ร้านเปิดเก้าโมง"],
       ["See you on Monday.", "เจอกันวันจันทร์"],
       ["I'm free this weekend.", "สุดสัปดาห์นี้ฉันว่าง"]
@@ -205,7 +205,7 @@ window.COURSE = [
     words: [["how much","ราคาเท่าไหร่"],["cheap","ถูก"],["expensive","แพง"],["size","ขนาด / ไซซ์"],["try on","ลองใส่"],["discount","ส่วนลด"],["cash","เงินสด"],["card","บัตร"],["receipt","ใบเสร็จ"],["shirt","เสื้อเชิ้ต"]],
     sents: [
       ["How much is this shirt?", "เสื้อตัวนี้ราคาเท่าไหร่"],
-      ["It's too expensive.", "แพงเกินไป"],
+      ["It's too expensive.", "มันแพงเกินไป"],
       ["Can I try it on?", "ขอลองใส่ได้ไหม"],
       ["Do you have a smaller size?", "มีไซซ์เล็กกว่านี้ไหม"],
       ["Can I pay by card?", "จ่ายด้วยบัตรได้ไหม"]
@@ -311,7 +311,7 @@ window.COURSE = [
     sents: [
       ["Excuse me, how do I get to the station?", "ขอโทษครับ ไปสถานียังไง"],
       ["Go straight and turn left at the traffic lights.", "ตรงไปแล้วเลี้ยวซ้ายที่ไฟแดง"],
-      ["It's on the corner.", "อยู่ตรงหัวมุม"],
+      ["It's on the corner.", "มันอยู่ตรงหัวมุม"],
       ["Is it far from here?", "ไกลจากที่นี่ไหม"],
       ["I think I'm lost.", "ฉันว่าฉันหลงทางแล้ว"]
     ]
@@ -347,7 +347,7 @@ window.COURSE = [
     sents: [
       ["Bangkok is bigger than Chiang Mai.", "กรุงเทพใหญ่กว่าเชียงใหม่"],
       ["This phone is more expensive than that one.", "โทรศัพท์เครื่องนี้แพงกว่าเครื่องนั้น"],
-      ["It's the best restaurant in town.", "เป็นร้านอาหารที่ดีที่สุดในเมือง"],
+      ["It's the best restaurant in town.", "มันเป็นร้านอาหารที่ดีที่สุดในเมือง"],
       ["My English is better now.", "ภาษาอังกฤษของฉันดีขึ้นแล้ว"],
       ["The train is as fast as the bus.", "รถไฟเร็วพอ ๆ กับรถบัส"]
     ]
