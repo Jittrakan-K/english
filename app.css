@@ -39,7 +39,7 @@ h2[lang="en"], .flash__front h2 { font-weight: 700; letter-spacing: 0; }
 /* ---------- top bar: an ink band ---------- */
 .bar { position: sticky; top: 0; z-index: var(--z-sticky-nav); background: var(--color-ink); color: var(--color-paper); }
 .bar__in { display: flex; align-items: center; gap: var(--space-lg); min-height: 72px; }
-.mark { display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--color-paper); text-decoration: none; font-family: var(--font-display); font-weight: var(--display-weight); font-size: var(--text-lg); white-space: nowrap; border-radius: var(--radius-pill); }
+.mark { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 44px; min-width: 44px; color: var(--color-paper); text-decoration: none; font-family: var(--font-display); font-weight: var(--display-weight); font-size: var(--text-lg); white-space: nowrap; border-radius: var(--radius-pill); }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .mark__logo, .foot__logo { width: 30px; height: 30px; flex-shrink: 0; }
 .tabs { display: flex; gap: var(--space-2xs); margin-inline: auto; }
@@ -303,7 +303,9 @@ button.tile:active { translate: 2px 3px; box-shadow: var(--shadow-press); }
 .score { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* the answer bar: part of the sheet, parted by the dashed rule */
-.feedback { position: sticky; bottom: 0; z-index: var(--z-sticky); padding-block: var(--space-lg); background: var(--color-paper-2); border-top: var(--rule-bar) dashed var(--color-rule); }
+/* the wrapper is what sticks: a sticky child inside a wrapper of its own height never moves */
+#bar { position: sticky; bottom: 0; z-index: var(--z-sticky); }
+.feedback { padding-block: var(--space-lg); background: var(--color-paper-2); border-top: var(--rule-bar) dashed var(--color-rule); }
 .feedback__in { display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg); flex-wrap: wrap; }
 .feedback__msg { display: grid; gap: var(--space-3xs); min-width: 0; }
 .feedback__msg h2 { font-size: var(--text-2xl); }
@@ -585,7 +587,14 @@ td.nw, td.num { white-space: nowrap; }
   .stats dd { font-size: var(--text-3xl); }
   .speak__card { padding: var(--space-xl) var(--space-lg) calc(var(--space-xl) + 80px); }
   .speak__card h2 { font-size: var(--text-3xl); }
-  .feedback__in { flex-direction: column; align-items: stretch; }
+  .feedback__in { flex-direction: column; align-items: stretch; gap: var(--space-sm); }
+  .feedback { padding-block: var(--space-md) calc(var(--space-md) + env(safe-area-inset-bottom)); }
+  .feedback__msg h2 { font-size: var(--text-xl); }
+  .feedback__msg p { font-size: var(--text-md); }
+  .feedback__msg .th { font-size: var(--text-sm); }
+  .col-pos, .col-pk { display: none; }
+  .speak { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .crumb a { display: inline-block; padding-block: var(--space-xs); }
   .feedback__side .btn--lg { flex: 1; }
   .field--inline { flex-wrap: wrap; }
   .stage-table th:nth-child(2), .stage-table td:nth-child(2) { display: none; }

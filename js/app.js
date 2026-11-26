@@ -1539,8 +1539,8 @@
     if (q) {
       var nq = norm(q), rows = [];
       VPACKS.forEach(function (pk) { pk.words.forEach(function (w, i) { if (norm(w[0]).indexOf(nq) !== -1 || w[1].indexOf(q) !== -1) rows.push({ pk: pk, i: i }); }); });
-      box.innerHTML = rows.length ? '<div class="table-wrap"><table><caption>พบ ' + rows.length + ' คำ</caption><thead><tr><th scope="col">คำ</th><th scope="col">ความหมาย</th><th scope="col">ชุด</th><th scope="col"><span class="visually-hidden">ฟัง</span></th></tr></thead><tbody>' +
-        rows.slice(0, 200).map(function (r) { var pk = r.pk, w = pk.words[r.i]; return '<tr><td class="en" lang="en">' + esc(w[0]) + (pk.notes[r.i] ? ' <span class="muted small">(' + esc(pk.notes[r.i]) + ')</span>' : '') + '</td><td>' + esc(w[1]) + ' <span class="muted small">' + (POS[pk.pos[r.i]] || '') + '</span></td><td class="small"><a href="#/pack/' + pk.id + '">' + pk.lvl + '&ensp;' + esc(pk.title) + '</a></td><td class="act">' + sayBtn(w[0], null, 'btn--sm') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+      box.innerHTML = rows.length ? '<div class="table-wrap"><table><caption>พบ ' + rows.length + ' คำ</caption><thead><tr><th scope="col">คำ</th><th scope="col">ความหมาย</th><th scope="col" class="col-pk">ชุด</th><th scope="col"><span class="visually-hidden">ฟัง</span></th></tr></thead><tbody>' +
+        rows.slice(0, 200).map(function (r) { var pk = r.pk, w = pk.words[r.i]; return '<tr><td class="en" lang="en">' + esc(w[0]) + (pk.notes[r.i] ? ' <span class="muted small">(' + esc(pk.notes[r.i]) + ')</span>' : '') + '</td><td>' + esc(w[1]) + ' <span class="muted small">' + (POS[pk.pos[r.i]] || '') + '</span></td><td class="small col-pk"><a href="#/pack/' + pk.id + '">' + pk.lvl + '&ensp;' + esc(pk.title) + '</a></td><td class="act">' + sayBtn(w[0], null, 'btn--sm') + '</td></tr>'; }).join('') + '</tbody></table></div>'
         : '<div class="empty sheet"><h2>ไม่พบคำนี้ในคลัง</h2><p>ลองพิมพ์คำสั้นลง หรือค้นเป็นภาษาไทย</p></div>';
       return;
     }
@@ -1556,8 +1556,8 @@
     render('<div class="view container">' +
       '<div class="view__head"><p class="crumb"><a href="#/words">คลังคำ</a>&ensp;/&ensp;ระดับ ' + pk.lvl + '</p><h1>' + esc(pk.title) + '</h1><p><span lang="en">' + esc(pk.en) + '</span>&ensp;' + pk.words.length + ' คำ' + (best ? ' ผ่านแล้ว ' + best.best + '%' : '') + ' อ่านและฟังให้ครบก่อน แล้วกดฝึก</p></div>' +
       '<div class="actions" style="margin-bottom: var(--space-xl)"><button class="btn btn--primary btn--lg" type="button" data-act="startpack" data-id="' + pk.id + '">' + (best ? 'ฝึกชุดนี้อีกครั้ง' : 'เริ่มฝึกชุดนี้') + '</button></div>' +
-      '<div class="table-wrap"><table><caption class="visually-hidden">คำในชุด' + esc(pk.title) + '</caption><thead><tr><th scope="col">คำ</th><th scope="col">ความหมาย</th><th scope="col">ชนิดคำ</th><th scope="col">สถานะ</th><th scope="col"><span class="visually-hidden">ฟัง</span></th></tr></thead><tbody>' +
-      pk.words.map(function (w, i) { var c = S.srs[pk.keys[i]], b = c ? c.b : -1; return '<tr><td class="en" lang="en">' + esc(w[0]) + (pk.notes[i] ? ' <span class="muted small">(' + esc(pk.notes[i]) + ')</span>' : '') + '</td><td>' + esc(w[1]) + '</td><td class="small">' + (POS[pk.pos[i]] || '') + '</td><td><span class="tag" data-b="' + (b < 0 ? '' : boxTier(b)) + '">' + (b < 0 ? 'ยังไม่เรียน' : boxLabel(b)) + '</span></td><td class="act">' + sayBtn(w[0], null, 'btn--sm') + '</td></tr>'; }).join('') +
+      '<div class="table-wrap"><table><caption class="visually-hidden">คำในชุด' + esc(pk.title) + '</caption><thead><tr><th scope="col">คำ</th><th scope="col">ความหมาย</th><th scope="col" class="col-pos">ชนิดคำ</th><th scope="col">สถานะ</th><th scope="col"><span class="visually-hidden">ฟัง</span></th></tr></thead><tbody>' +
+      pk.words.map(function (w, i) { var c = S.srs[pk.keys[i]], b = c ? c.b : -1; return '<tr><td class="en" lang="en">' + esc(w[0]) + (pk.notes[i] ? ' <span class="muted small">(' + esc(pk.notes[i]) + ')</span>' : '') + '</td><td>' + esc(w[1]) + '</td><td class="small col-pos">' + (POS[pk.pos[i]] || '') + '</td><td><span class="tag" data-b="' + (b < 0 ? '' : boxTier(b)) + '">' + (b < 0 ? 'ยังไม่เรียน' : boxLabel(b)) + '</span></td><td class="act">' + sayBtn(w[0], null, 'btn--sm') + '</td></tr>'; }).join('') +
       '</tbody></table></div>' +
       '<nav class="pager" aria-label="ชุดคำอื่น">' + (prev ? '<a class="btn" href="#/pack/' + prev.id + '">ชุดก่อนหน้า: ' + esc(prev.title) + '</a>' : '<span></span>') + (next ? '<a class="btn" href="#/pack/' + next.id + '">ชุดถัดไป: ' + esc(next.title) + '</a>' : '') + '</nav>' +
       '</div>', { focus: false });
@@ -1967,4 +1967,6 @@
 
   route();
   if (cloudOn()) pullNow();
+  /* offline copy: the service worker serves the last version when there is no connection */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
 })();
