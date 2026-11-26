@@ -1646,7 +1646,7 @@
         '<hr><h2>ข้อมูลของคุณ</h2>' +
         '<p class="small muted">' + (cloudOn() ? 'ความคืบหน้าซิงก์กับบัญชี ' + esc(ME.name) + ' อยู่แล้ว ไฟล์สำรองเอาไว้เก็บอีกชุดหนึ่ง' : ME ? 'บัญชีนี้อยู่ในเบราว์เซอร์นี้เท่านั้น ดาวน์โหลดไฟล์สำรองไว้เพื่อย้ายไปเครื่องอื่น' : 'ความคืบหน้าอยู่ในเบราว์เซอร์นี้เท่านั้น <a href="#/account">สร้างบัญชี</a> ไว้แยกของแต่ละคน หรือดาวน์โหลดไฟล์สำรองไว้ย้ายเครื่อง') + '</p>' +
         '<div class="actions"><button class="btn btn--sm" type="button" data-act="export">ดาวน์โหลดไฟล์สำรอง</button><label class="btn btn--sm file-btn">โหลดไฟล์สำรอง<input type="file" accept="application/json,.json" data-act="import" aria-label="เลือกไฟล์สำรอง"></label></div>' +
-        '<div class="actions"><button class="link" type="button" data-act="reset">ล้างความคืบหน้าทั้งหมด</button></div>' +
+        '<div class="actions"><a class="btn btn--sm btn--line" href="#/reset">รีเซ็ตสิ่งที่เรียน</a></div>' +
         '<p class="status" id="set-status" role="status"></p>' +
       '</form></div></div>', { focus: false });
     fillVoices();
@@ -1659,6 +1659,54 @@
     sel.innerHTML = list.map(function (v) { return '<option value="' + esc(v.name) + '"' + (cur && cur.name === v.name ? ' selected' : '') + '>' + esc(v.name) + ' (' + esc(v.lang) + ')' + (isLocal(v) ? '' : ' ออนไลน์ อาจช้า') + '</option>'; }).join('');
   }
   function setStatus(msg, err) { var s = $('#set-status'); if (!s) return; s.textContent = msg; if (err) s.setAttribute('data-err', ''); else s.removeAttribute('data-err'); }
+
+  /* ---------------- reset (#/reset) ---------------- */
+  /* pick the parts to start over; settings, account and the TOEIC plan stay. S.r makes this copy win
+     over the cloud copy, so a reset part does not come back on the next sync */
+  var RS = { pick: {}, confirm: false, done: '' };
+  function rsMins() { return Math.round(Object.keys(S.spk).reduce(function (a, k) { return a + (S.spk[k] || 0); }, 0) / 60); }
+  var RESETS = [
+    { id: 'lessons', name: 'บทเรียนและด่านสอบ', has: function () { return Object.keys(S.done).some(function (k) { return k.indexOf(':') < 0; }) || Object.keys(S.passed).length > 0; },
+      info: function () { return 'ผ่านแล้ว ' + Object.keys(S.done).filter(function (k) { return k.indexOf(':') < 0; }).length + ' บท ด่านสอบ ' + Object.keys(S.passed).length + ' ขั้น บทเรียนจะกลับไปล็อกตามลำดับเหมือนเริ่มใหม่'; },
+      run: function (s) { Object.keys(s.done).forEach(function (k) { if (k.indexOf(':') < 0) delete s.done[k]; }); s.passed = {}; } },
+    { id: 'words', name: 'คำศัพท์และการทวนคำ', has: function () { return Object.keys(S.srs).length > 0 || Object.keys(S.done).some(function (k) { return k.indexOf('v:') === 0; }); },
+      info: function () { return fmt(Object.keys(S.srs).length) + ' คำในคลัง รวมรอบทวนและชุดคำที่ฝึกแล้ว'; },
+      run: function (s) { s.srs = {}; Object.keys(s.done).forEach(function (k) { if (k.indexOf('v:') === 0) delete s.done[k]; }); } },
+    { id: 'speak', name: 'ฝึกพูดและทวนประโยค', has: function () { return Object.keys(S.spk).length > 0 || Object.keys(S.ss).length > 0; },
+      info: function () { return 'เวลาพูดสะสม ' + rsMins() + ' นาที ประโยคที่เก็บไว้ทวน ' + Object.keys(S.ss).length + ' ประโยค'; },
+      run: function (s) { s.spk = {}; s.ss = {}; } },
+    { id: 'read', name: 'บทอ่าน', has: function () { return Object.keys(S.done).some(function (k) { return k.indexOf('r:') === 0; }); },
+      info: function () { return 'อ่านจบแล้ว ' + Object.keys(S.done).filter(function (k) { return k.indexOf('r:') === 0; }).length + ' เรื่อง'; },
+      run: function (s) { Object.keys(s.done).forEach(function (k) { if (k.indexOf('r:') === 0) delete s.done[k]; }); } },
+    { id: 'toeic', name: 'ติว TOEIC', has: function () { return S.tq.m.length > 0 || Object.keys(S.tq.p).length > 0 || Object.keys(S.tq.x).length > 0; },
+      info: function () { return 'ข้อสอบจำลอง ' + S.tq.m.length + ' ครั้ง ฝึกไปแล้ว ' + fmt(Object.keys(S.tq.p).reduce(function (a, k) { return a + S.tq.p[k].n; }, 0)) + ' ข้อ และข้อที่เก็บไว้ทวน ส่วนคะแนนเป้าหมายยังอยู่'; },
+      run: function (s) { s.tq.p = {}; s.tq.m = []; s.tq.x = {}; s.tq.g = {}; } },
+    { id: 'xp', name: 'แต้ม วันต่อเนื่อง และปฏิทิน', has: function () { return S.xp > 0 || Object.keys(S.days).length > 0; },
+      info: function () { return fmt(S.xp) + ' แต้ม ต่อเนื่อง ' + streak() + ' วัน และปฏิทินการเรียน'; },
+      run: function (s) { s.xp = 0; s.days = {}; } }
+  ];
+  function rsPicked() { return RESETS.filter(function (r) { return RS.pick[r.id]; }); }
+  function rsGoLabel() { var n = rsPicked().length; return n ? 'รีเซ็ต ' + n + ' ส่วนที่เลือก' : 'เลือกส่วนที่จะรีเซ็ตก่อน'; }
+  function viewReset() {
+    var picked = rsPicked();
+    var list = RESETS.map(function (r) {
+      var has = r.has();
+      return '<li><label class="check rs-item"' + (has ? '' : ' data-empty') + '><input type="checkbox" data-act="rspick" data-id="' + r.id + '"' + (RS.pick[r.id] ? ' checked' : '') + (RS.confirm ? ' disabled' : '') + '><span><b>' + esc(r.name) + '</b><br><span class="small muted">' + (has ? esc(r.info()) : 'ยังไม่มีข้อมูลส่วนนี้') + '</span></span></label></li>';
+    }).join('');
+    var confirm = RS.confirm ? '<div class="rs-confirm" role="alertdialog" aria-labelledby="rs-ch" aria-describedby="rs-cd"><h2 id="rs-ch">ยืนยันการรีเซ็ต</h2><p id="rs-cd">จะลบ ' + picked.map(function (r) { return esc(r.name); }).join(', ') + ' ' + (cloudOn() ? 'ทั้งในเครื่องนี้และในบัญชี ' + esc(ME.name) + ' ทุกเครื่อง' : 'ในเบราว์เซอร์นี้') + ' หลังรีเซ็ตยังกดเลิกทำได้จนกว่าจะออกจากหน้านี้</p>' +
+      '<div class="actions"><button class="btn btn--danger" type="button" data-act="rsdo">ยืนยัน รีเซ็ตเลย</button><button class="btn btn--line" type="button" data-act="rscancel">ยกเลิก</button></div></div>' : '';
+    var done = RS.done ? '<div class="notice rs-done" role="status"><p>รีเซ็ต' + esc(RS.done) + ' แล้ว เริ่มใหม่ได้เลย</p>' + (prevState ? '<div class="actions"><button class="btn btn--sm" type="button" data-act="rsundo">เลิกทำ</button><a class="btn btn--sm btn--line" href="#/">ไปหน้าเส้นทาง</a></div>' : '') + '</div>' : '';
+    render('<div class="view container rs">' +
+      '<div class="view__head"><p class="crumb"><a href="#/progress">สถิติ</a></p><h1>รีเซ็ตสิ่งที่เรียน</h1><p>เลือกเฉพาะส่วนที่อยากเริ่มใหม่ ส่วนที่ไม่ได้เลือกอยู่เหมือนเดิม การตั้งค่าเสียง ความเร็ว เป้าหมายรายวัน และบัญชีไม่ถูกลบ</p></div>' +
+      done +
+      '<div class="rs-grid"><form class="sheet rs-form" onsubmit="return false" aria-labelledby="rs-h"><h2 id="rs-h">ส่วนที่จะรีเซ็ต</h2>' +
+        '<ul class="rs-list">' + list + '</ul>' +
+        (RS.confirm ? confirm : '<div class="actions"><button class="btn btn--primary" type="button" id="rs-go" data-act="rsgo"' + (picked.length ? '' : ' disabled') + '>' + rsGoLabel() + '</button><button class="btn btn--line btn--sm" type="button" data-act="rsall">' + (picked.length === RESETS.length ? 'ไม่เลือกเลย' : 'เลือกทั้งหมด') + '</button></div>') +
+      '</form>' +
+      '<aside class="rs-side"><h2>ก่อนรีเซ็ต</h2><p>ดาวน์โหลดไฟล์สำรองเก็บไว้ก่อน ถ้าเปลี่ยนใจภายหลังก็โหลดไฟล์นี้กลับมาได้ที่หน้าสถิติ</p><div class="actions"><button class="btn btn--sm" type="button" data-act="export">ดาวน์โหลดไฟล์สำรอง</button></div>' +
+        '<p class="small muted">อยากเริ่มใหม่ทั้งหมดแบบไม่ลบของเดิม ใช้ <a href="#/account">บัญชีใหม่</a> แยกอีกชื่อก็ได้</p><p class="status" id="set-status" role="status"></p></aside></div>' +
+      '</div>', { focus: false });
+  }
 
   /* ---------------- reading (js/data-reading.js) ---------------- */
   var READ = window.READING || [], READBY = {};
@@ -2264,6 +2312,7 @@
     var parts = (location.hash.replace(/^#\/?/, '') || '').split('/').filter(Boolean);
     var v = parts[0] || 'home', a = parts[1];
     if (v !== 'review') R = null;
+    if (v !== 'reset') { RS.done = ''; RS.confirm = false; if (RS.undo) { prevState = null; RS.undo = false; } }
     P = null;
     if (TP) { TP.tok = 0; clearInterval(TP.timer); clearInterval(TP.wtimer); TP = null; }
     document.body.dataset.view = v;
@@ -2289,6 +2338,7 @@
       if (a && TPBY[a]) { document.title = 'TOEIC ' + TPBY[a].name + ' | Fluent'; return viewToeicPart(TPBY[a]); }
       document.title = 'TOEIC prep | Fluent'; return viewToeic();
     }
+    if (v === 'reset') { setNav('progress'); document.title = 'Reset progress | Fluent'; return viewReset(); }
     if (v === 'progress') return viewProgress();
     if (v === 'account') return viewAccount();
     document.body.dataset.view = 'home';
@@ -2296,7 +2346,7 @@
   }
 
   /* ---------------- events ---------------- */
-  var resetArmed = 0, prevState = null;
+  var prevState = null;
   document.addEventListener('click', function (e) {
     var el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
@@ -2395,9 +2445,19 @@
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
         setStatus('ดาวน์โหลดไฟล์สำรองแล้ว'); break;
       }
-      case 'reset':
-        if (Date.now() - resetArmed < 5000) { try { localStorage.removeItem(slotKey()); } catch (x) {} S = defaults(); S.r = Date.now(); save(); resetArmed = 0; viewProgress(); setStatus('ล้างความคืบหน้าแล้ว เริ่มใหม่ได้เลย'); }
-        else { resetArmed = Date.now(); el.textContent = 'กดอีกครั้งภายใน 5 วินาทีเพื่อยืนยัน'; setTimeout(function () { if (el.isConnected) el.textContent = 'ล้างความคืบหน้าทั้งหมด'; }, 5000); }
+      case 'rspick': RS.pick[el.getAttribute('data-id')] = el.checked; RS.done = ''; (function () { var g = $('#rs-go'); if (g) { g.textContent = rsGoLabel(); g.disabled = !rsPicked().length; } var al = $('[data-act="rsall"]'); if (al) al.textContent = rsPicked().length === RESETS.length ? 'ไม่เลือกเลย' : 'เลือกทั้งหมด'; })(); break;
+      case 'rsall': (function () { var all = rsPicked().length !== RESETS.length; RESETS.forEach(function (r) { RS.pick[r.id] = all; }); RS.done = ''; viewReset(); var b = $('[data-act="rsall"]'); if (b) b.focus(); })(); break;
+      case 'rsgo': if (rsPicked().length) { RS.confirm = true; viewReset(); var c = $('[data-act="rscancel"]'); if (c) c.focus(); } break;
+      case 'rscancel': RS.confirm = false; viewReset(); var g2 = $('#rs-go'); if (g2) g2.focus(); break;
+      case 'rsdo': (function () {
+        var picked = rsPicked(); if (!picked.length) return;
+        prevState = JSON.stringify(S);
+        picked.forEach(function (r) { r.run(S); });
+        S.r = Date.now(); save();
+        RS = { pick: {}, confirm: false, undo: true, done: picked.map(function (r) { return r.name; }).join(', ') };
+        chrome(); viewReset(); var u = $('[data-act="rsundo"]'); if (u) u.focus();
+      })(); break;
+      case 'rsundo': if (prevState) { S = sanitize(JSON.parse(prevState)); S.r = Date.now(); prevState = null; save(); RS = { pick: {}, confirm: false, done: '' }; chrome(); viewReset(); setStatus('กลับไปใช้ข้อมูลเดิมแล้ว'); } break;
         break;
     }
   });
