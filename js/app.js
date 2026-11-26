@@ -63,7 +63,7 @@
   var ME = ACC ? ACC.session() : null;
   function slotKey(me) { me = me === undefined ? ME : me; return me ? 'speakeasy.u.' + me.mode + '.' + me.id : KEY; }
   function readSlot(me) { try { var raw = localStorage.getItem(slotKey(me)); return raw ? sanitize(JSON.parse(raw)) : null; } catch (e) { return null; } }
-  function defaults() { return { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: { goal: 20, rate: 0.9, voice: '', free: false, dir: 'en' }, created: Date.now(), t: 0, r: 0, spk: {}, ss: {}, tq: { p: {}, m: [], x: {} } }; }
+  function defaults() { return { done: {}, passed: {}, xp: 0, days: {}, srs: {}, settings: { goal: 20, rate: 0.9, voice: '', free: false, dir: 'en' }, created: Date.now(), t: 0, r: 0, spk: {}, ss: {}, tq: { p: {}, m: [], x: {}, g: {}, acc: true, goal: 0 } }; }
   function load() {
     try {
       var raw = localStorage.getItem(slotKey());
@@ -87,12 +87,13 @@
     Object.keys(obj(s.srs)).forEach(function (k) { var v = s.srs[k]; if (v && isFinite(+v.b) && isFinite(+v.d)) out.srs[k] = { b: clamp(Math.round(+v.b), 0, 8), d: Math.round(+v.d) }; });
     out.spk = {}; Object.keys(obj(s.spk)).forEach(function (k) { var v = +s.spk[k]; if (/^\d{4}-\d{2}-\d{2}$/.test(k) && isFinite(v) && v > 0) out.spk[k] = Math.min(v, 86400); });
     out.ss = {}; Object.keys(obj(s.ss)).slice(0, 600).forEach(function (k) { var v = s.ss[k]; if (v && typeof v.th === 'string' && isFinite(+v.b) && isFinite(+v.d)) out.ss[String(k).slice(0, 300)] = { th: v.th.slice(0, 300), b: clamp(Math.round(+v.b), 0, 8), d: Math.round(+v.d) }; });
-    var tq = obj(s.tq); out.tq = { p: {}, m: [], x: {} };
+    var tq = obj(s.tq); out.tq = { p: {}, m: [], x: {}, g: {}, acc: tq.acc !== false, goal: [450, 600, 750, 900].indexOf(+tq.goal) >= 0 ? +tq.goal : 0 };
+    Object.keys(obj(tq.g)).forEach(function (k) { var v = tq.g[k]; if (/^[a-z]{2,8}$/.test(k) && v && +v.n > 0) { var n = Math.round(+v.n); out.tq.g[k] = { n: n, ok: clamp(Math.round(+v.ok) || 0, 0, n) }; } });
     Object.keys(obj(tq.p)).forEach(function (k) { var v = tq.p[k]; if (/^p[1-7]$/.test(k) && v && isFinite(+v.n) && +v.n > 0) { var n = Math.round(+v.n); out.tq.p[k] = { n: n, ok: clamp(Math.round(+v.ok) || 0, 0, n), best: clamp(Math.round(+v.best) || 0, 0, 100), at: +v.at || 0 }; } });
     (Array.isArray(tq.m) ? tq.m : []).slice(0, 20).forEach(function (v) {
       if (!v || !isFinite(+v.at)) return;
       var sc = function (x) { return x == null || !isFinite(+x) ? null : clamp(Math.round(+x), 5, 495); }, ct = function (x) { return Math.max(0, Math.round(+x) || 0); };
-      out.tq.m.push({ at: +v.at, k: /^(full|L|R)$/.test(v.k) ? v.k : 'full', L: sc(v.L), R: sc(v.R), lr: ct(v.lr), ln: ct(v.ln), rr: ct(v.rr), rn: ct(v.rn) });
+      out.tq.m.push({ at: +v.at, k: /^(full|L|R|T1|T2)$/.test(v.k) ? v.k : 'full', L: sc(v.L), R: sc(v.R), lr: ct(v.lr), ln: ct(v.ln), rr: ct(v.rr), rn: ct(v.rn) });
     });
     Object.keys(obj(tq.x)).slice(0, 400).forEach(function (k) { if (/^p[1-7]:\d+$/.test(k)) out.tq.x[k] = Math.round(+tq.x[k]) || 0; });
     var st = obj(s.settings);
@@ -128,6 +129,7 @@
     var otq = older.tq || { p: {}, m: [] };
     out.tq = out.tq || { p: {}, m: [], x: {} };
     Object.keys(otq.p || {}).forEach(function (k) { if (!out.tq.p[k] || otq.p[k].n > out.tq.p[k].n) out.tq.p[k] = otq.p[k]; });
+    out.tq.g = out.tq.g || {}; Object.keys(otq.g || {}).forEach(function (k) { if (!out.tq.g[k] || otq.g[k].n > out.tq.g[k].n) out.tq.g[k] = otq.g[k]; });
     var seen = {}; out.tq.m = out.tq.m.concat(otq.m || []).filter(function (x) { if (seen[x.at]) return false; seen[x.at] = 1; return true; }).sort(function (x, y) { return y.at - x.at; }).slice(0, 20);
     out.created = Math.min(a.created || Date.now(), b.created || Date.now());
     return out;
@@ -1708,20 +1710,50 @@
   /* ---------------- TOEIC (js/toeic-*.js) ---------------- */
   var TQ = window.TOEIC || {}, TPARTS = TQ.parts || [], TPBY = {};
   TPARTS.forEach(function (p) { TPBY[p.id] = p; });
+  /* the paraphrase drill: what you hear in the audio against the words the right option uses */
+  if (TQ.para) {
+    TQ.pp = TQ.para.map(function (p, i, all) {
+      var offs = i === 11 ? [7, 13, 31] : [7, 19, 31];
+      return { q: 'Which phrase means the same as "' + p[0] + '"?', opts: [p[1]].concat(offs.map(function (d) { return all[(i + d) % all.length][1]; })), ans: 0, why: '"' + p[0] + '" ถอดความเป็น "' + p[1] + '" แปลว่า ' + p[2] };
+    });
+    TPBY.pp = { id: 'pp', sec: 'R', name: 'Paraphrase', th: 'คำถอดความ', real: 0, what: '', tips: [] };
+  }
   var T_SET = { p3: 1, p4: 1, p6: 1, p7: 1 }, T_LISTEN = { p1: 1, p2: 1, p3: 1, p4: 1 }, ABCD = 'ABCD';
   var T_WHO = { M: 'ผู้ชาย', W: 'ผู้หญิง', M2: 'ผู้ชายอีกคน', W2: 'ผู้หญิงอีกคน', N: '' };
   /* the lowest section scores ETS maps to each CEFR level */
   var T_CEFR = { L: [[490, 'C1'], [400, 'B2'], [275, 'B1'], [110, 'A2'], [60, 'A1']], R: [[455, 'C1'], [385, 'B2'], [275, 'B1'], [115, 'A2'], [60, 'A1']] };
   /* the mock is the real test cut to about a third, in the real order; reading gets the real 45 seconds a question */
   var T_MOCK = { L: [['p1', 3], ['p2', 10], ['p3', 4], ['p4', 3]], R: [['p5', 15], ['p6', 2], ['p7', 4]] };
+  /* a full test takes every other item of each part, so test 1 and test 2 never share a question */
+  var T_FULLN = { p1: 6, p2: 25, p5: 30 };
+  /* the real test's pace: seconds per question to answer after the audio, and seconds per reading question */
+  var T_WAIT = { p1: 5, p2: 5, p3: 8, p4: 8 }, T_PACE = { p5: 20, p6: 37, p7: 62 };
+  var T_ACC = { 'en-US': 'อเมริกัน', 'en-GB': 'อังกฤษ', 'en-AU': 'ออสเตรเลีย', 'en-CA': 'แคนาดา', 'en-NZ': 'นิวซีแลนด์', 'en-IE': 'ไอริช', 'en-IN': 'อินเดีย', 'en-ZA': 'แอฟริกาใต้' };
+  var T_KIND = { T1: 'ข้อสอบเต็ม ชุดที่ 1', T2: 'ข้อสอบเต็ม ชุดที่ 2', full: 'ชุดย่อ', L: 'ชุดย่อ Listening', R: 'ชุดย่อ Reading' };
   var TP = null;
+  function tFull(k) { return k === 'T1' || k === 'T2'; }
+  function tForm(k) {
+    var f = k === 'T2' ? 1 : 0, units = [];
+    ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].forEach(function (pid) {
+      var idx = TQ[pid].map(function (x, i) { return i; }).filter(function (i) { return i % 2 === f; });
+      if (T_FULLN[pid]) idx = idx.slice(0, T_FULLN[pid]);
+      idx.forEach(function (i) { units.push(tUnit(pid, i)); });
+    });
+    [1, 2, 3].forEach(function (nd) {
+      TQ.p7.map(function (x, i) { return i; }).filter(function (i) { return TQ.p7[i].docs.length === nd; })
+        .filter(function (i, pos) { return pos % 2 === f; }).forEach(function (i) { units.push(tUnit('p7', i)); });
+    });
+    return units;
+  }
+  function tQn(units) { return units.reduce(function (a, u) { return a + u.qs.length; }, 0); }
   function tCount(pid) { return T_SET[pid] ? TQ[pid].reduce(function (a, s) { return a + s.qs.length; }, 0) : (TQ[pid] || []).length; }
   /* one screen: a single question (Parts 1, 2, 5) or one set with its questions. Options are shuffled
      every time, and a "ข้อ B" inside an explanation follows its option to the new letter */
   function tShuffle(q) {
-    var order = shuffle(q.opts.map(function (x, i) { return i; })), at = {};
+    var order = q.opts.map(function (x, i) { return i; }), at = {};
+    if (!q.opts.every(function (o) { return /^\[\d\]$/.test(o); })) order = shuffle(order);
     order.forEach(function (o, n) { at[o] = n; });
-    return { q: q.q || '', opts: order.map(function (o) { return q.opts[o]; }), ans: at[q.ans], pick: -1,
+    return { q: q.q || '', opts: order.map(function (o) { return q.opts[o]; }), ans: at[q.ans], pick: -1, tag: q.tag || '',
       why: String(q.why || '').replace(/ข้อ ([A-D])(?![A-Za-z])/g, function (m, l) { var n = at[ABCD.indexOf(l)]; return n == null ? m : 'ข้อ ' + ABCD[n]; }) };
   }
   function tUnit(pid, i) { var raw = TQ[pid][i]; return { pid: pid, key: pid + ':' + i, n: i, raw: raw, qs: (T_SET[pid] ? raw.qs : [raw]).map(tShuffle) }; }
@@ -1746,14 +1778,21 @@
   /* voices: a woman's and a man's voice where the device has both, otherwise one voice at two pitches */
   var T_FEM = /Samantha|Victoria|Karen|Moira|Tessa|Fiona|Zira|Aria|Jenny|Susan|Allison|Ava|Serena|Kate|Libby|Sonia|Natasha|Hazel|Michelle|Emma|Joanna|Salli|Kimberly|Ivy|Kendra|Catherine|Clara|Emily|Olivia|Female/i;
   var T_MAL = /Daniel|Alex|David|Mark|Fred|Tom|Oliver|Arthur|Guy|Ryan|George|Rishi|Aaron|James|Matthew|Brian|Joey|Justin|Eric|Christopher|Roger|Andrew|Thomas|Gordon|Reed|Ralph|\bMale\b/i;
-  function tCast() {
+  /* mixed accents, like the real test: each set gets its own voices, always the same ones for the same set */
+  function tLang(v) { return v ? String(v.lang).replace('_', '-') : ''; }
+  function tHash(s) { var h = 7; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
+  function tCast(u) {
     if (!voices.length) loadVoices();
-    var base = pickVoice(), lang = base ? base.lang : 'en-US';
+    var base = pickVoice(), lang = tLang(base) || 'en-US', mix = S.tq.acc !== false;
     var pool = voices.filter(isLocal); if (!pool.length) pool = voices.slice();
-    pool.sort(function (a, b) { return (b.lang === lang) - (a.lang === lang); });
+    pool = pool.filter(function (v) { return /^en-/i.test(tLang(v)); });
+    if (!pool.length && base) pool = [base];
+    if (!mix) pool.sort(function (a, b) { return (tLang(b) === lang) - (tLang(a) === lang); });
     var f = pool.filter(function (v) { return T_FEM.test(v.name); }), m = pool.filter(function (v) { return !T_FEM.test(v.name) && T_MAL.test(v.name); });
-    if (base && S.settings.voice) { if (T_FEM.test(base.name)) f.unshift(base); else if (T_MAL.test(base.name)) m.unshift(base); }
-    var c = { N: base, W: f[0] || base, M: m[0] || base }; c.W2 = f[1] || c.W; c.M2 = m[1] || c.M;
+    if (!mix && base && S.settings.voice) { if (T_FEM.test(base.name)) f.unshift(base); else if (T_MAL.test(base.name)) m.unshift(base); }
+    var h = mix && u ? tHash(u.key) : 0, at = function (arr, k) { return arr.length ? arr[(h + k) % arr.length] : null; };
+    var c = { N: (mix ? at(pool, 2) : base) || base, W: at(f, 0) || base, M: at(m, 1) || base };
+    c.W2 = f.length > 1 ? f[(f.indexOf(c.W) + 1) % f.length] : c.W; c.M2 = m.length > 1 ? m[(m.indexOf(c.M) + 1) % m.length] : c.M;
     var p = { N: 1, W: 1, M: 1, W2: 1, M2: 1 };
     if (c.W === c.M) { p.W = 1.25; p.M = 0.8; }
     if (c.W2 === c.W) p.W2 = p.W + 0.2;
@@ -1768,16 +1807,29 @@
     b.setAttribute('aria-pressed', TP.playing ? 'true' : 'false');
   }
   function tStop() { if (TP) { TP.tok = 0; TP.playing = false; } hush(); }
+  /* in a mock, after the audio the next question comes on its own, as in the test room */
+  function tWaitStart() {
+    var u = TP && TP.units[TP.i]; if (!u || !T_WAIT[u.pid]) return;
+    clearInterval(TP.wtimer); TP.wait = Date.now() + T_WAIT[u.pid] * u.qs.length * 1000;
+    TP.wtimer = setInterval(tWaitTick, 250); tWaitTick();
+  }
+  function tWaitText() { if (!TP) return ''; if (TP.wait) return 'ข้อถัดไปใน ' + Math.max(0, Math.ceil((TP.wait - Date.now()) / 1000)) + ' วินาที'; return TP.playing ? 'กำลังเล่นเสียง' : ''; }
+  function tWaitTick() {
+    if (!TP || !TP.wait) return;
+    var el = $('#t-wait'); if (el) el.textContent = tWaitText();
+    if (Date.now() >= TP.wait) { tWaitStop(); tNext(); }
+  }
+  function tWaitStop() { if (TP) { clearInterval(TP.wtimer); TP.wait = 0; } }
   function tPlay() {
     var u = TP && TP.units[TP.i]; if (!u || !TTS) return;
     if (TP.playing) { if (TP.mode !== 'mock') { tStop(); tAudioUI(); } return; }
     if (TP.mode === 'mock' && TP.heard[TP.i]) return;
-    var lines = tLines(u), tok = TP.tok = Math.random() + 1, cast = tCast(), i = 0;
+    var lines = tLines(u), tok = TP.tok = Math.random() + 1, cast = tCast(u), i = 0;
     TP.playing = true; TP.heard[TP.i] = true; tAudioUI();
     clearTimeout(ttsTimer); speechSynthesis.cancel();
     function next() {
       if (!TP || TP.tok !== tok) return;
-      if (i >= lines.length) { TP.playing = false; tAudioUI(); return; }
+      if (i >= lines.length) { TP.playing = false; tAudioUI(); if (TP.mode === 'mock') tWaitStart(); return; }
       var L = lines[i++], who = cast.c.hasOwnProperty(L[0]) ? L[0] : 'N', ut = utter(L[1], false), v = cast.c[who];
       if (v) { ut.voice = v; ut.lang = v.lang; }
       ut.pitch = cast.p[who] || 1;
@@ -1792,11 +1844,13 @@
 
   function tStart(mode, arg, n) {
     var units = [];
-    if (mode === 'mock') (arg === 'R' ? [] : T_MOCK.L).concat(arg === 'L' ? [] : T_MOCK.R).forEach(function (x) { units = units.concat(tPick(x[0], x[1])); });
+    if (mode === 'mock' && tFull(arg)) units = tForm(arg);
+    else if (mode === 'mock') (arg === 'R' ? [] : T_MOCK.L).concat(arg === 'L' ? [] : T_MOCK.R).forEach(function (x) { units = units.concat(tPick(x[0], x[1])); });
+    else if (mode === 'tag') units = shuffle(TQ.p5.map(function (x, i) { return i; }).filter(function (i) { return TQ.p5[i].tag === arg; })).slice(0, n || 10).map(function (i) { return tUnit('p5', i); });
     else if (mode === 'miss') units = shuffle(Object.keys(S.tq.x)).map(function (k) { var p = k.split(':'); return TQ[p[0]] && TQ[p[0]][+p[1]] ? tUnit(p[0], +p[1]) : null; }).filter(Boolean).slice(0, 15);
     else if (TQ[arg]) units = tPick(arg, n || TQ[arg].length, n >= TQ[arg].length && arg === 'p7');
     if (!units.length) return;
-    TP = { mode: mode, kind: mode === 'mock' ? arg : '', pid: mode === 'part' ? arg : '', units: units, i: 0, tok: 0, playing: false, heard: {}, showText: false, confirm: false, deadline: 0, timer: 0, t0: Date.now(), saved: false,
+    TP = { mode: mode, kind: mode === 'mock' ? arg : mode === 'tag' ? arg : '', pid: mode === 'part' || mode === 'speed' ? arg : mode === 'tag' ? 'p5' : '', units: units, i: 0, tok: 0, playing: false, heard: {}, showText: false, confirm: false, grid: false, deadline: 0, timer: 0, wait: 0, wtimer: 0, t0: Date.now(), saved: false,
       total: units.reduce(function (a, u) { return a + u.qs.length; }, 0) };
     tRender();
   }
@@ -1814,18 +1868,19 @@
       TP.deadline = Date.now() + TP.units.filter(function (x) { return !T_LISTEN[x.pid]; }).reduce(function (a, x) { return a + x.qs.length; }, 0) * 45000;
       TP.timer = setInterval(tTick, 1000);
     }
-    var a = tBefore(TP.i) + 1, b = a + u.qs.length - 1, label = mock ? 'ข้อสอบจำลอง TOEIC' : 'ฝึก TOEIC ' + TPBY[u.pid].name;
+    if (TP.mode === 'speed' && !TP.deadline) { TP.deadline = Date.now() + TP.total * (T_PACE[TP.pid] || 30) * 1000; TP.timer = setInterval(tTick, 1000); }
+    var a = tBefore(TP.i) + 1, b = a + u.qs.length - 1, label = mock ? (T_KIND[TP.kind] || 'ข้อสอบจำลอง') + ' TOEIC' : 'ฝึก TOEIC ' + TPBY[u.pid].name;
     render('<div class="player">' +
       '<div class="container player__bar"><button class="btn btn--icon btn--sm" type="button" data-act="tquit" aria-label="ออกจาก' + esc(label) + '">' + I.close + '</button>' +
         '<div class="progress" role="progressbar" aria-label="ความคืบหน้า ' + esc(label) + '" aria-valuemin="0" aria-valuemax="' + TP.total + '" aria-valuenow="' + (a - 1) + '"><i style="--p:' + ((a - 1) / TP.total) + '"></i></div>' +
         '<span class="player__count">' + (a === b ? 'ข้อ ' + a : 'ข้อ ' + a + ' ถึง ' + b) + ' จาก ' + TP.total + '</span>' +
         (TP.deadline ? '<span class="player__count tq__clock" id="t-clock" role="timer">' + tClock() + '</span>' : '') + '</div>' +
-      '<div class="container tq-area"><div class="tq">' + tBody(u, mock, split) + '</div></div>' +
+      '<div class="container tq-area"><div class="tq">' + (TP.grid ? tGridHTML() : tBody(u, mock, split)) + '</div></div>' +
       '<div id="bar">' + tBar(u, mock) + '</div>' +
       '</div>', { mode: 'play', focus: false, keepScroll: !!keep });
     if (!keep) {
-      var f = $('.tq [data-act="topt"]:not([disabled])') || $('#tnext'); if (f) f.focus({ preventScroll: true });
-      if (listen && TTS && !TP.heard[TP.i]) { var at = TP.i, tp = TP; setTimeout(function () { if (TP === tp && TP.i === at && !TP.heard[at]) tPlay(); }, 300); }
+      var f = TP.grid ? $('.tq-grid [aria-current]') || $('.tq-grid button') : $('.tq [data-act="topt"]:not([disabled])') || $('#tnext'); if (f) f.focus({ preventScroll: true });
+      if (listen && TTS && !TP.heard[TP.i] && !TP.grid) { var at = TP.i, tp = TP; setTimeout(function () { if (TP === tp && TP.i === at && !TP.heard[at]) tPlay(); }, 300); }
     }
   }
   function tGap(text, filled) { return filled == null ? '<span class="blank">______</span>' : '<span class="tq__fill">' + esc(filled) + '</span>'; }
@@ -1837,6 +1892,8 @@
     var head = '<p class="tq__part"><b>' + esc(part.name) + '</b> ' + esc(part.th) + (u.raw.kind ? ' / ' + esc(u.raw.kind) : '') + '</p>';
     if (T_LISTEN[u.pid]) src += TTS ? '<div class="tq__audio"><button class="btn btn--ink" type="button" id="tplay" data-act="tplay" aria-pressed="' + (TP.playing ? 'true' : 'false') + '"' + (mock && TP.heard[TP.i] ? ' disabled' : '') + '>' + I.sound + '<span>' + tPlayLabel() + '</span></button><span class="tq__note">' + (mock ? 'สอบจริงเปิดเสียงครั้งเดียว ที่นี่ก็เช่นกัน' : 'ลองฟังรอบเดียวแล้วตอบ ดูเฉลยแล้วค่อยฟังซ้ำ') + '</span></div>'
       : '<p class="notice">เครื่องนี้ไม่มีเสียงอ่าน จึงแสดงบทพูดให้อ่านแทน ถ้าจะฝึกฟังจริงให้เปิดใน Chrome หรือ Safari</p>';
+    if (u.raw.graphic) src += '<figure class="tq__graphic sheet" lang="en"><figcaption>' + esc(u.raw.graphic.title) + '</figcaption><div class="table-wrap"><table class="tq-table"><thead><tr>' + u.raw.graphic.rows[0].map(function (c) { return '<th scope="col">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      u.raw.graphic.rows.slice(1).map(function (r) { return '<tr>' + r.map(function (c, ci) { return ci ? '<td>' + esc(c) + '</td>' : '<th scope="row">' + esc(c) + '</th>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div></figure>';
     if (u.pid === 'p1') src += '<figure class="tq__scene"><figcaption>ภาพในข้อนี้</figcaption><p>' + esc(u.raw.scene) + '</p></figure>';
     if (u.pid === 'p2' && !done && TTS) src += '<p class="tq__prompt">ฟังคำถามหรือประโยค แล้วเลือกคำตอบที่เหมาะที่สุด</p>';
     if (u.pid === 'p5') src += '<p class="tq__sent" lang="en">' + esc(u.qs[0].q).replace('-------', tGap('', tFillFor(u.qs[0], mock))) + '</p>';
@@ -1862,21 +1919,31 @@
     return '<li><fieldset><legend' + (en ? ' lang="en"' : '') + '>' + esc(legend) + '</legend><div class="opts opts--stack' + (letters ? ' tq__abc' : '') + '">' + opts + '</div>' + why + '</fieldset></li>';
   }
   function tScriptHTML(u) {
+    var cast = TTS && S.tq.acc !== false ? tCast(u).c : {};
     return '<div class="tq__script"><h3>บทที่ได้ยิน</h3><ol class="tq__lines">' + tLines(u).map(function (L) {
-      return '<li>' + (T_WHO[L[0]] ? '<span class="tq__who">' + T_WHO[L[0]] + '</span>' : '') + '<span lang="en">' + esc(L[1]) + '</span>' + sayBtn(L[1].replace(/^[A-D]\. /, ''), 'ฟังประโยคนี้') + '</li>';
+      var acc = T_ACC[tLang(cast[L[0]])], who = [T_WHO[L[0]], acc ? 'สำเนียง' + acc : ''].filter(Boolean).join(' ');
+      return '<li>' + (who ? '<span class="tq__who">' + who + '</span>' : '') + '<span lang="en">' + esc(L[1]) + '</span>' + sayBtn(L[1].replace(/^[A-D]\. /, ''), 'ฟังประโยคนี้') + '</li>';
     }).join('') + '</ol></div>';
   }
   function tBar(u, mock) {
     var last = TP.i === TP.units.length - 1, side = '', msg = '', mark = '';
-    if (TP.confirm) {
+    if (TP.confirm === 'submit') {
+      var reading = TP.units.some(function (x) { return !T_LISTEN[x.pid]; });
+      msg = '<h2>ยังไม่ได้ตอบ ' + TP.left + ' ข้อ</h2><p>ตอบผิดไม่ถูกหักคะแนน ข้อที่ไม่แน่ใจให้เดาไว้ก่อน</p>';
+      side = (reading ? '<button class="btn btn--line" type="button" data-act="tgrid">ดูข้อที่ยังไม่ตอบ</button>' : '<button class="btn btn--line" type="button" data-act="tquitno">ทำต่อ</button>') + '<button class="btn btn--primary" type="button" id="tnext" data-act="tsubmit">ส่งเลย</button>';
+    } else if (TP.grid) {
+      msg = '<p>ส่วน Reading ย้อนไปแก้ข้อไหนก็ได้ก่อนหมดเวลา</p>';
+      side = '<button class="btn btn--primary" type="button" id="tnext" data-act="tgrid">กลับไปข้อที่ทำอยู่</button>';
+    } else if (TP.confirm) {
       mark = 'quit';
       msg = '<h2>ออกจากข้อสอบจำลอง?</h2><p>คำตอบที่ทำไว้จะไม่ถูกบันทึก</p>';
       side = '<button class="btn btn--line" type="button" data-act="tquitno">ทำต่อ</button><button class="btn btn--primary" type="button" id="tnext" data-act="tquityes">ออก</button>';
     } else if (mock) {
       var answered = TP.units.reduce(function (a, x) { return a + x.qs.filter(function (q) { return q.pick >= 0; }).length; }, 0);
       var prev = TP.i > 0 && !T_LISTEN[u.pid] && !T_LISTEN[TP.units[TP.i - 1].pid];
-      msg = '<p>ตอบแล้ว ' + answered + ' จาก ' + TP.total + ' ข้อ' + (T_LISTEN[u.pid] ? ' ส่วนฟังย้อนกลับไม่ได้เหมือนสอบจริง' : '') + '</p>';
-      side = (prev ? '<button class="btn btn--line" type="button" data-act="tprev">ก่อนหน้า</button>' : '') + '<button class="btn btn--primary" type="button" id="tnext" data-act="tnext">' + (last ? 'ส่งข้อสอบ' : 'ข้อถัดไป') + '</button>';
+      msg = '<p>ตอบแล้ว ' + answered + ' จาก ' + TP.total + ' ข้อ' + (T_LISTEN[u.pid] ? ' ส่วนฟังย้อนกลับไม่ได้เหมือนสอบจริง' : '') + '</p>' +
+        (T_LISTEN[u.pid] && TTS ? '<p class="tq__note" id="t-wait">' + tWaitText() + '</p>' : '');
+      side = (!T_LISTEN[u.pid] ? '<button class="btn btn--line btn--sm" type="button" data-act="tgrid">ดูทุกข้อ</button>' : '') + (prev ? '<button class="btn btn--line" type="button" data-act="tprev">ก่อนหน้า</button>' : '') + '<button class="btn btn--primary" type="button" id="tnext" data-act="tnext">' + (last ? 'ส่งข้อสอบ' : 'ข้อถัดไป') + '</button>';
     } else if (u.qs.every(function (q) { return q.pick >= 0; })) {
       var r = u.qs.filter(function (q) { return q.pick === q.ans; }).length, all = r === u.qs.length;
       mark = all ? 'right' : 'wrong';
@@ -1899,18 +1966,37 @@
     var nx = u.qs.findIndex(function (x) { return x.pick < 0; });
     var f = nx < 0 ? $('#tnext') : $('[data-act="topt"][data-q="' + nx + '"]'); if (f) f.focus({ preventScroll: true });
   }
-  function tGo(d) { tStop(); TP.i += d; tRender(); }
+  function tGo(d) { tStop(); tWaitStop(); TP.confirm = false; TP.i += d; tRender(); }
+  function tNext() {
+    if (!TP || TP.over) return;
+    tWaitStop();
+    if (TP.i < TP.units.length - 1) { tGo(1); return; }
+    if (TP.mode === 'mock' && TP.confirm !== 'submit') {
+      var left = TP.units.reduce(function (a, x) { return a + x.qs.filter(function (q) { return q.pick < 0; }).length; }, 0);
+      if (left) { TP.confirm = 'submit'; TP.left = left; $('#bar').innerHTML = tBar(TP.units[TP.i], true); var f = $('#tnext'); if (f) f.focus(); return; }
+    }
+    tFinish();
+  }
+  function tGridHTML() {
+    var n = 0, items = TP.units.map(function (u, i) {
+      var a = n + 1; n += u.qs.length;
+      if (T_LISTEN[u.pid]) return '';
+      var got = u.qs.filter(function (q) { return q.pick >= 0; }).length, st = got === u.qs.length ? 'done' : got ? 'part' : '';
+      return '<li><button class="tq-grid__b" type="button" data-act="tjump" data-i="' + i + '"' + (st ? ' data-st="' + st + '"' : '') + (i === TP.i ? ' aria-current="true"' : '') + '><b class="num">' + (a === n ? a : a + ' ถึง ' + n) + '</b><span>' + esc(TPBY[u.pid].name.replace(/ [A-Z].*$/, '')) + '</span><span class="tq__note">' + (got === u.qs.length ? 'ตอบครบ' : got ? 'ตอบ ' + got + ' จาก ' + u.qs.length : 'ยังไม่ตอบ') + '</span></button></li>';
+    }).join('');
+    return '<p class="tq__part"><b>ทุกข้อในส่วน Reading</b> แตะเพื่อไปที่ข้อนั้น</p><ol class="tq-grid">' + items + '</ol>';
+  }
   function tQuit() {
     if (!TP) return;
-    if (TP.mode === 'mock' && TP.units.some(function (u) { return u.qs.some(function (q) { return q.pick >= 0; }); })) { TP.confirm = true; $('#bar').innerHTML = tBar(TP.units[TP.i], true); var f = $('#tnext'); if (f) f.focus(); return; }
+    if (TP.mode === 'mock' && TP.units.some(function (u) { return u.qs.some(function (q) { return q.pick >= 0; }); })) { TP.confirm = 'quit'; $('#bar').innerHTML = tBar(TP.units[TP.i], true); var f = $('#tnext'); if (f) f.focus(); return; }
     if (TP.mode !== 'mock') tRecord();
     tLeave();
   }
-  function tLeave() { tStop(); if (TP) clearInterval(TP.timer); TP = null; route(); }
+  function tLeave() { tStop(); if (TP) { clearInterval(TP.timer); clearInterval(TP.wtimer); } TP = null; route(); }
   /* stats per part, the sets to come back to, and the mock's estimate */
   function tRecord() {
     if (!TP || TP.saved) return null; TP.saved = true;
-    var mock = TP.mode === 'mock', by = {}, sec = { L: { r: 0, n: 0 }, R: { r: 0, n: 0 } }, right = 0, asked = 0;
+    var mock = TP.mode === 'mock', by = {}, tags = {}, sec = { L: { r: 0, n: 0 }, R: { r: 0, n: 0 } }, right = 0, asked = 0;
     TP.units.forEach(function (u) {
       var any = false, bad = false;
       u.qs.forEach(function (q) {
@@ -1918,6 +2004,7 @@
         var p = by[u.pid] = by[u.pid] || { r: 0, n: 0 }, ok = q.pick === q.ans, s = sec[T_LISTEN[u.pid] ? 'L' : 'R'];
         any = true; p.n++; asked++; s.n++;
         if (ok) { p.r++; right++; s.r++; } else bad = true;
+        if (u.pid === 'p5' && q.tag) { var g = S.tq.g[q.tag] = S.tq.g[q.tag] || { n: 0, ok: 0 }, tg = tags[q.tag] = tags[q.tag] || { r: 0, n: 0 }; g.n++; tg.n++; if (ok) { g.ok++; tg.r++; } }
       });
       if (!any) return;
       if (bad) S.tq.x[u.key] = dayIndex(); else delete S.tq.x[u.key];
@@ -1927,35 +2014,39 @@
       var p = by[pid], o = S.tq.p[pid] || { n: 0, ok: 0, best: 0, at: 0 };
       o.n += p.n; o.ok += p.r; if (p.n >= 5) o.best = Math.max(o.best, Math.round(p.r / p.n * 100)); o.at = Date.now(); S.tq.p[pid] = o;
     });
-    var res = { by: by, sec: sec, right: right, asked: asked, L: tScale(sec.L.r, sec.L.n), R: tScale(sec.R.r, sec.R.n), mins: Math.round((Date.now() - TP.t0) / 60000) };
+    var res = { by: by, tags: tags, sec: sec, right: right, asked: asked, L: tScale(sec.L.r, sec.L.n), R: tScale(sec.R.r, sec.R.n), mins: Math.round((Date.now() - TP.t0) / 60000) };
     if (mock) { S.tq.m.unshift({ at: Date.now(), k: TP.kind, L: res.L, R: res.R, lr: sec.L.r, ln: sec.L.n, rr: sec.R.r, rn: sec.R.n }); S.tq.m = S.tq.m.slice(0, 20); }
     save();
     if (asked) addXP(right * 2 + (mock ? 20 : 0));
     return res;
   }
   function tFinish() {
-    if (!TP) return;
-    tStop(); clearInterval(TP.timer); TP.deadline = 0;
+    if (!TP || TP.over) return;
+    tStop(); tWaitStop(); clearInterval(TP.timer); TP.deadline = 0; TP.confirm = false;
     var res = tRecord(); if (!res) return;
     TP.over = true;
     if (TP.mode === 'mock') { tMockResult(res); return; }
     var pct = res.asked ? Math.round(res.right / res.asked * 100) : 0, miss = Object.keys(S.tq.x).length;
     var again = TP.mode === 'miss' ? (miss ? '<button class="btn btn--primary btn--lg" type="button" data-act="tmiss">ทวนข้อที่พลาดต่อ</button>' : '')
+      : TP.mode === 'tag' ? '<button class="btn btn--primary btn--lg" type="button" data-act="ttag" data-t="' + esc(TP.kind) + '">ฝึกเรื่องนี้อีก 10 ข้อ</button>'
+      : TP.mode === 'speed' ? '<button class="btn btn--primary btn--lg" type="button" data-act="tspeed" data-p="' + TP.pid + '" data-n="' + TP.units.length + '">จับเวลาอีกรอบ</button>'
       : '<button class="btn btn--primary btn--lg" type="button" data-act="tpart" data-p="' + TP.pid + '" data-n="' + TP.units.length + '">ฝึกอีกชุด</button>';
-    var lead = !res.asked ? 'ข้ามทุกข้อไป ลองตอบดูก่อน ถึงผิดก็ได้อ่านเฉลย' : pct >= 85 ? 'พร้อมสำหรับ Part นี้แล้ว ลองข้อสอบจำลองดูว่าทำได้ในเวลาจริงไหม' : pct >= 60 ? 'ข้อที่พลาดถูกเก็บไว้แล้ว กลับมาทวนได้จากหน้า TOEIC' : 'อ่านเทคนิคของ Part นี้อีกรอบ แล้วฝึกชุดใหม่ ข้อที่พลาดถูกเก็บไว้ให้ทวน';
+    var lead = TP.timeUp ? 'หมดเวลาก่อนทำครบ ข้อสอบจริงใช้เวลาเท่านี้ ฝึกตัดสินใจให้เร็วขึ้น ข้อที่ไม่แน่ใจให้เดาแล้วไปต่อ' : !res.asked ? 'ข้ามทุกข้อไป ลองตอบดูก่อน ถึงผิดก็ได้อ่านเฉลย' : pct >= 85 ? 'พร้อมสำหรับ Part นี้แล้ว ลองข้อสอบจำลองดูว่าทำได้ในเวลาจริงไหม' : pct >= 60 ? 'ข้อที่พลาดถูกเก็บไว้แล้ว กลับมาทวนได้จากหน้า TOEIC' : 'อ่านเทคนิคของ Part นี้อีกรอบ แล้วฝึกชุดใหม่ ข้อที่พลาดถูกเก็บไว้ให้ทวน';
     render('<div class="player"><div class="container stage-area"><div class="result">' +
-      '<h1>' + (!res.asked ? 'ยังไม่ได้ตอบ' : pct >= 85 ? 'แม่นมาก' : pct >= 60 ? 'มาถูกทางแล้ว' : 'ฝึกอีกนิด') + '</h1>' +
+      '<h1>' + (TP.timeUp ? 'หมดเวลา' : !res.asked ? 'ยังไม่ได้ตอบ' : pct >= 85 ? 'แม่นมาก' : pct >= 60 ? 'มาถูกทางแล้ว' : 'ฝึกอีกนิด') + '</h1>' +
       '<div class="result__big" data-new' + (pct < 60 ? ' data-pass="false"' : '') + '><b class="num">' + pct + '%</b><span>ตอบถูก ' + res.right + ' จาก ' + res.asked + ' ข้อ</span></div>' +
       '<p class="lead">' + lead + '</p>' +
       '<div class="actions">' + again + '<button class="btn btn--line" type="button" data-act="tback">กลับหน้า TOEIC</button></div>' +
       '</div></div></div>', { mode: 'play', focus: '.result h1' });
   }
-  function tMockText(m) { return [m.L != null ? 'Listening ' + m.L : '', m.R != null ? 'Reading ' + m.R : ''].filter(Boolean).join(' และ ') + (m.L != null && m.R != null ? ' รวม ' + (m.L + m.R) : ''); }
+  function tMockText(m) { return (T_KIND[m.k] ? T_KIND[m.k] + ' ' : '') + [m.L != null ? 'Listening ' + m.L : '', m.R != null ? 'Reading ' + m.R : ''].filter(Boolean).join(' และ ') + (m.L != null && m.R != null ? ' รวม ' + (m.L + m.R) : ''); }
   function tMockResult(res) {
     var full = res.L != null && res.R != null, big = full ? res.L + res.R : res.L != null ? res.L : res.R, of = full ? 990 : 495;
     var fact = function (sec, v, s) { return v == null ? '' : '<div><dt>' + (sec === 'L' ? 'Listening' : 'Reading') + '</dt><dd class="num">' + v + '<small> ' + tCefr(sec, v) + '</small></dd><dd class="tq__raw">ถูก ' + s.r + ' จาก ' + s.n + '</dd></div>'; };
     var rows = TPARTS.filter(function (p) { return res.by[p.id]; }).map(function (p) { var b = res.by[p.id]; return '<tr><th scope="row">' + esc(p.name) + '</th><td>' + esc(p.th) + '</td><td class="num">' + b.r + ' / ' + b.n + '</td><td class="num">' + Math.round(b.r / b.n * 100) + '%</td></tr>'; }).join('');
     var weak = TPARTS.filter(function (p) { return res.by[p.id]; }).sort(function (a, b) { return res.by[a.id].r / res.by[a.id].n - res.by[b.id].r / res.by[b.id].n; })[0];
+    var tagw = Object.keys(res.tags).filter(function (t) { return res.tags[t].r < res.tags[t].n; }).sort(function (a, b) { return res.tags[a].r / res.tags[a].n - res.tags[b].r / res.tags[b].n; }).slice(0, 3);
+    var other = TP.kind === 'T1' ? 'T2' : TP.kind === 'T2' ? 'T1' : TP.kind;
     var wrong = [];
     TP.units.forEach(function (u) { u.qs.forEach(function (q, k) { if (q.pick !== q.ans) wrong.push({ u: u, q: q, k: k }); }); });
     var review = wrong.map(function (w) {
@@ -1973,11 +2064,12 @@
     }).join('');
     render('<div class="player"><div class="container tq-res">' +
       '<div class="result">' +
-        '<h1>' + (TP.timeUp ? 'หมดเวลา' : 'ส่งข้อสอบแล้ว') + '</h1>' +
+        '<h1>' + (TP.timeUp ? 'หมดเวลา' : 'ส่งข้อสอบแล้ว') + '</h1><p class="tq__note">' + esc(T_KIND[TP.kind] || '') + '</p>' +
         '<div class="result__big" data-new><b class="num">' + big + '</b><span>คะแนนโดยประมาณ จาก ' + of + '</span></div>' +
         '<dl class="facts">' + fact('L', res.L, res.sec.L) + fact('R', res.R, res.sec.R) + '<div><dt>ใช้เวลา</dt><dd class="num">' + res.mins + '<small> นาที</small></dd></div></dl>' +
         '<p class="lead">คะแนนนี้เทียบจากสัดส่วนข้อที่ถูก ไม่ใช่ตารางแปลงคะแนนของ ETS ใช้ดูแนวโน้มของตัวเอง ระดับ A1 ถึง C1 ข้างคะแนนเทียบตามเกณฑ์ CEFR ที่ ETS ประกาศ' + (weak ? ' จุดที่ควรฝึกก่อนคือ ' + esc(weak.name) + ' ' + esc(weak.th) : '') + '</p>' +
-        '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="tmock" data-k="' + TP.kind + '">ทำอีกชุด</button><button class="btn btn--line" type="button" data-act="tback">กลับหน้า TOEIC</button></div>' +
+        (tagw.length ? '<p>Part 5 พลาดบ่อยเรื่อง ' + tagw.map(function (t) { return '<button class="btn btn--line btn--sm" type="button" data-act="ttag" data-t="' + esc(t) + '">' + esc((TQ.tags || {})[t] || t) + '</button>'; }).join(' ') + '</p>' : '') +
+        '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="tmock" data-k="' + other + '">' + (tFull(other) ? 'ทำ' + esc(T_KIND[other].replace('ข้อสอบเต็ม ', '')) : 'ทำอีกชุด') + '</button><button class="btn btn--line" type="button" data-act="tback">กลับหน้า TOEIC</button></div>' +
       '</div>' +
       '<h2 class="read__h">ผลแต่ละ Part</h2><div class="table-wrap"><table class="stage-table tq-table"><thead><tr><th scope="col">Part</th><th scope="col">เรื่อง</th><th scope="col">ถูก</th><th scope="col">ร้อยละ</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
       (wrong.length ? '<h2 class="read__h">ข้อที่พลาด ' + wrong.length + ' ข้อ</h2><ol class="tq__review">' + review + '</ol>' : '<p class="notice">ถูกทุกข้อ ลองฝึกด้วยข้อสอบเต็มฉบับจากหนังสือหรือเว็บ ETS ต่อได้เลย</p>') +
@@ -1989,26 +2081,52 @@
     return '<li><a class="pack" href="#/toeic/' + p.id + '"' + (o && o.n ? ' data-done' : '') + '><span class="pack__lvl">Part ' + p.id.slice(1) + '</span><b>' + esc(p.th) + '</b><span class="pack__en" lang="en">' + esc(p.name.replace(/^Part \d /, '')) + '</span>' +
       '<span class="pack__stat">' + (o && o.n ? 'ทำแล้ว ' + o.n + ' ข้อ ถูก ' + Math.round(o.ok / o.n * 100) + '%' : 'ฝึกได้ ' + tCount(p.id) + ' ข้อ ข้อสอบจริงมี ' + p.real + ' ข้อ') + '</span></a></li>';
   }
+  function tDate(t) { var d = new Date(t); return d.getDate() + ' ' + MONTHS_TH[d.getMonth()]; }
+  var MONTHS_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
   function viewToeic() {
-    var m = S.tq.m, last = m[0], miss = Object.keys(S.tq.x).length;
-    var best = m.filter(function (x) { return x.L != null && x.R != null; }).reduce(function (a, x) { return Math.max(a, x.L + x.R); }, 0);
+    var m = S.tq.m, miss = Object.keys(S.tq.x).length;
+    var fullOf = function (k) { return m.filter(function (x) { return x.k === k; }).reduce(function (a, x) { return Math.max(a, (x.L || 0) + (x.R || 0)); }, 0); };
+    var lastFull = m.find(function (x) { return x.L != null && x.R != null; });
     var packs = VPACKS.filter(function (pk) { return /^toeic-/.test(pk.id); });
-    var nL = T_MOCK.L.reduce(function (a, x) { return a + (T_SET[x[0]] ? 3 : 1) * x[1]; }, 0), nR = T_MOCK.R.reduce(function (a, x) { return a + (x[0] === 'p6' ? 4 : x[0] === 'p7' ? 3.5 : 1) * x[1]; }, 0);
+    var nFull = tQn(tForm('T1')), nMini = T_MOCK.L.concat(T_MOCK.R).reduce(function (a, x) { return a + (x[0] === 'p6' ? 4 : x[0] === 'p7' ? 4 : T_SET[x[0]] ? 3 : 1) * x[1]; }, 0);
+    var plan = (TQ.plan || []).find(function (pl) { return pl.goal === S.tq.goal; });
+    var formBtn = function (k) { var b = fullOf(k); return '<button class="btn btn--primary btn--lg" type="button" data-act="tmock" data-k="' + k + '">' + esc(T_KIND[k].replace('ข้อสอบเต็ม ', '')) + (b ? '<small class="tq__best">ดีที่สุด ' + b + '</small>' : '') + '</button>'; };
+    var hist = m.slice(0, 8).map(function (x) {
+      var full = x.L != null && x.R != null, v = (x.L || 0) + (x.R || 0), of = full ? 990 : 495;
+      return '<li><span class="tq-hist__when">' + tDate(x.at) + '</span><span class="tq-hist__what">' + esc(T_KIND[x.k] || '') + '</span><span class="tq-hist__bar" aria-hidden="true"><i style="--p:' + (v / of) + '"></i></span><b class="num">' + v + '<small> / ' + of + '</small></b></li>';
+    }).join('');
+    var gap = plan && lastFull ? plan.goal - (lastFull.L + lastFull.R) : null;
     render('<div class="view container toeic">' +
-      '<div class="view__head"><h1>ติว TOEIC</h1><p>ครบ 7 Part ตามรูปแบบข้อสอบจริง ฝึกทีละ Part มีเฉลยภาษาไทยทุกข้อ แล้วลองข้อสอบจำลองจับเวลาเพื่อดูคะแนนโดยประมาณ</p></div>' +
-      '<section class="tq-mock" aria-labelledby="tm-h"><div class="tq-mock__text"><h2 id="tm-h">ข้อสอบจำลอง</h2>' +
-        '<p>ย่อจากข้อสอบจริงเหลือประมาณ ' + Math.round(nL + nR) + ' ข้อ เรียงตาม Part เหมือนจริง ส่วนฟังเล่นเสียงครั้งเดียว ส่วนอ่านจับเวลาข้อละ 45 วินาทีเท่ากับข้อสอบจริง</p>' +
-        '<p class="tq__note">' + (last ? 'ครั้งล่าสุด ' + esc(tMockText(last)) + (best ? ' คะแนนรวมดีที่สุด ' + best : '') : 'ยังไม่เคยทำ ทำครั้งแรกเพื่อดูว่าตอนนี้อยู่ประมาณไหน') + '</p></div>' +
-        '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="tmock" data-k="full">เริ่มทั้งชุด</button><button class="btn btn--line" type="button" data-act="tmock" data-k="L">เฉพาะ Listening</button><button class="btn btn--line" type="button" data-act="tmock" data-k="R">เฉพาะ Reading</button></div></section>' +
+      '<div class="view__head"><h1>ติว TOEIC</h1><p>ครบ 7 Part ตามรูปแบบข้อสอบจริง ' + (['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'].reduce(function (a, p) { return a + tCount(p); }, 0)) + ' ข้อ เฉลยภาษาไทยทุกข้อ ฝึกทีละ Part แล้ววัดผลด้วยข้อสอบเต็มที่จับเวลาเหมือนห้องสอบ</p></div>' +
+      '<section class="tq-mock" aria-labelledby="tm-h"><div class="tq-mock__text"><h2 id="tm-h">ข้อสอบเต็ม 2 ชุด</h2>' +
+        '<p>ชุดละประมาณ ' + Math.round(nFull / 10) * 10 + ' ข้อ ไม่ซ้ำกันเลย ส่วนฟังเล่นเสียงครั้งเดียวแล้วไปข้อถัดไปเองตามเวลาจริง ส่วนอ่านมีเวลา 75 นาที ย้อนแก้ข้อไหนก็ได้ ใช้เวลาราว 2 ชั่วโมง ทำให้จบในครั้งเดียว</p>' +
+        '<p class="tq__note">อยากลองสั้น ๆ ก่อน ใช้ชุดย่อประมาณ ' + nMini + ' ข้อ สุ่มใหม่ทุกครั้ง</p></div>' +
+        '<div class="tq-mock__go"><div class="actions">' + formBtn('T1') + formBtn('T2') + '</div>' +
+          '<div class="actions"><button class="btn btn--line" type="button" data-act="tmock" data-k="full">ชุดย่อ</button><button class="btn btn--line" type="button" data-act="tmock" data-k="L">เฉพาะ Listening</button><button class="btn btn--line" type="button" data-act="tmock" data-k="R">เฉพาะ Reading</button></div>' +
+          '<button class="btn btn--line btn--sm" type="button" data-act="tacc" aria-pressed="' + (S.tq.acc !== false) + '">สำเนียงผสม อเมริกัน อังกฤษ ออสเตรเลีย: ' + (S.tq.acc !== false ? 'เปิด' : 'ปิด') + '</button></div></section>' +
+      (hist ? '<h2 class="read__lvl">ผลข้อสอบจำลอง</h2><ol class="tq-hist">' + hist + '</ol><p class="tq__note">คะแนนเทียบจากสัดส่วนข้อที่ถูก ใช้ดูแนวโน้ม ไม่ใช่คะแนนจริงจาก ETS</p>' : '') +
+      '<h2 class="read__lvl">แผนติวตามคะแนนเป้าหมาย</h2><div class="seg tq-goal" role="group" aria-label="คะแนนเป้าหมาย">' + (TQ.plan || []).map(function (pl) { return '<button class="btn btn--sm' + (pl.goal === S.tq.goal ? '' : ' btn--line') + '" type="button" data-act="tgoal" data-g="' + pl.goal + '" aria-pressed="' + (pl.goal === S.tq.goal) + '">' + pl.goal + '+</button>'; }).join('') + '</div>' +
+      (plan ? '<div class="tq-plan"><p class="tq-plan__who">' + esc(plan.who) + ' แผนนี้ใช้เวลาประมาณ ' + plan.weeks + ' สัปดาห์' + (gap == null ? ' ทำข้อสอบเต็มสักชุดเพื่อดูว่าห่างเป้าแค่ไหน' : gap > 0 ? ' ผลล่าสุดห่างเป้าอีก ' + gap + ' คะแนน' : ' ผลล่าสุดถึงเป้าแล้ว ลองตั้งเป้าที่สูงขึ้น') + '</p>' +
+        '<div class="tq-plan__cols"><div><h3>ทุกวัน</h3><ul class="tq-tips">' + plan.daily.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div><div><h3>ทั้งแผน</h3><ul class="tq-tips">' + plan.weekly.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div></div></div>'
+        : '<p class="tq__note">เลือกคะแนนที่ต้องการ แล้วจะเห็นว่าควรฝึกอะไรทุกวัน</p>') +
       '<h2 class="read__lvl">Listening ฟัง 100 ข้อ 45 นาที</h2><ul class="packs">' + TPARTS.filter(function (p) { return p.sec === 'L'; }).map(tPartCard).join('') + '</ul>' +
       '<h2 class="read__lvl">Reading อ่าน 100 ข้อ 75 นาที</h2><ul class="packs">' + TPARTS.filter(function (p) { return p.sec === 'R'; }).map(tPartCard).join('') + '</ul>' +
-      '<div class="actions tq-more">' + (miss ? '<button class="btn" type="button" data-act="tmiss">ทวนข้อที่เคยพลาด ' + miss + ' ชุด</button>' : '') + '<a class="btn" href="#/toeic/grammar">ไวยากรณ์ที่ออกบ่อย</a></div>' +
+      '<div class="actions tq-more">' + (miss ? '<button class="btn" type="button" data-act="tmiss">ทวนข้อที่เคยพลาด ' + miss + ' ชุด</button>' : '') + '<a class="btn" href="#/toeic/grammar">ไวยากรณ์ที่ออกบ่อย</a><a class="btn" href="#/toeic/p5">จุดอ่อน Part 5</a>' + (TQ.para ? '<a class="btn" href="#/toeic/paraphrase">คำถอดความ ' + TQ.para.length + ' คู่</a>' : '') + '</div>' +
       (packs.length ? '<h2 class="read__lvl">คำศัพท์ TOEIC ' + packs.reduce(function (a, pk) { return a + pk.words.length; }, 0) + ' คำ</h2><ul class="packs">' + packs.map(function (pk) {
         var n = packLearned(pk);
         return '<li><a class="pack" href="#/pack/' + pk.id + '"' + (n >= pk.words.length ? ' data-done' : '') + '><span class="pack__lvl">' + pk.lvl + '</span><b>' + esc(pk.title.replace(/^TOEIC: /, '')) + '</b><span class="pack__en" lang="en">' + esc(pk.en.replace(/^TOEIC: /, '')) + '</span><span class="pack__stat">' + (n ? 'ฝึกแล้ว ' + n + ' จาก ' : '') + pk.words.length + ' คำ</span><span class="pack__meter" aria-hidden="true"><i style="--p:' + (n / pk.words.length) + '"></i></span></a></li>';
       }).join('') + '</ul>' : '') +
       '<h2 class="read__lvl">ก่อนวันสอบ</h2><ul class="tq-tips">' + (TQ.general || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
       '</div>', { focus: false });
+  }
+  /* Part 5 by question type, weakest first, each with a ten-question drill */
+  function tTagHTML() {
+    var names = TQ.tags || {}, keys = Object.keys(names).filter(function (t) { return TQ.p5.some(function (q) { return q.tag === t; }); });
+    keys.sort(function (a, b) { var A = S.tq.g[a], B = S.tq.g[b]; return (A && A.n ? A.ok / A.n : 2) - (B && B.n ? B.ok / B.n : 2); });
+    return '<div class="tq-tags"><h3>ฝึกแยกตามประเภทข้อ</h3><ul>' + keys.map(function (t) {
+      var g = S.tq.g[t], pct = g && g.n ? Math.round(g.ok / g.n * 100) : null;
+      return '<li><button class="btn btn--line btn--sm" type="button" data-act="ttag" data-t="' + t + '">' + esc(names[t]) + '</button><span class="tq__note">' + (pct == null ? 'ยังไม่ได้ทำ' : 'ถูก ' + pct + '% จาก ' + g.n + ' ข้อ') + '</span></li>';
+    }).join('') + '</ul></div>';
   }
   function viewToeicPart(p) {
     var i = TPARTS.indexOf(p), prev = TPARTS[i - 1], next = TPARTS[i + 1], sets = T_SET[p.id], len = TQ[p.id].length, o = S.tq.p[p.id];
@@ -2020,13 +2138,24 @@
           '<dl class="facts"><div><dt>สอบจริง</dt><dd class="num">' + p.real + '<small> ข้อ</small></dd></div><div><dt>ฝึกในเว็บนี้</dt><dd class="num">' + tCount(p.id) + '<small> ข้อ</small></dd></div><div><dt>ถูกโดยเฉลี่ย</dt><dd class="num">' + (o && o.n ? Math.round(o.ok / o.n * 100) + '<small>%</small>' : '<small>ยังไม่ได้ฝึก</small>') + '</dd></div></dl>' +
           (p.id === 'p1' ? '<p class="notice">ข้อสอบจริงเป็นรูปถ่าย ที่นี่ใช้คำบรรยายภาพภาษาไทยแทน อ่านแล้วนึกภาพตามก่อนฟัง</p>' : '') +
           '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="tpart" data-p="' + p.id + '" data-n="' + first + '">ฝึก ' + first + (sets ? ' ชุด' : ' ข้อ') + '</button>' +
-            (len > first ? '<button class="btn btn--line" type="button" data-act="tpart" data-p="' + p.id + '" data-n="' + len + '">ทำทั้งหมด ' + tCount(p.id) + ' ข้อ</button>' : '') + '</div></div>' +
+            (len > first ? '<button class="btn btn--line" type="button" data-act="tpart" data-p="' + p.id + '" data-n="' + len + '">ทำทั้งหมด ' + tCount(p.id) + ' ข้อ</button>' : '') + '</div>' +
+          (T_PACE[p.id] ? '<p class="tq-speed"><button class="btn btn--line" type="button" data-act="tspeed" data-p="' + p.id + '" data-n="' + (sets ? Math.min(4, len) : 15) + '">ฝึกจับเวลาแบบสอบจริง</button> <span class="tq__note">' + T_PACE[p.id] + ' วินาทีต่อข้อ เท่าเวลาที่มีจริงในห้องสอบ</span></p>' : '') +
+          (p.id === 'p5' ? tTagHTML() : '') + '</div>' +
         '<div class="tq-intro__tips"><h2>เทคนิค</h2><ol class="tq-tips">' + p.tips.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' +
-          (p.id === 'p5' || p.id === 'p6' ? '<p><a href="#/toeic/grammar">ทบทวนไวยากรณ์ที่ออกบ่อยก่อนฝึก</a></p>' : '') + '</div>' +
+          (p.id === 'p5' || p.id === 'p6' ? '<p><a href="#/toeic/grammar">ทบทวนไวยากรณ์ที่ออกบ่อยก่อนฝึก</a></p>' : '') +
+          (TQ.para && (p.id === 'p3' || p.id === 'p4' || p.id === 'p7') ? '<p><a href="#/toeic/paraphrase">ดูคำถอดความที่ออกบ่อย</a></p>' : '') + '</div>' +
       '</div>' +
       '<nav class="pager" aria-label="Part อื่น">' + (prev ? '<a class="btn" href="#/toeic/' + prev.id + '">' + esc(prev.name.replace(/ [A-Z].*$/, '')) + ' ' + esc(prev.th) + '</a>' : '<a class="btn" href="#/toeic">หน้า TOEIC</a>') +
         (next ? '<a class="btn" href="#/toeic/' + next.id + '">' + esc(next.name.replace(/ [A-Z].*$/, '')) + ' ' + esc(next.th) + '</a>' : '') + '</nav>' +
       '</div>', { focus: false });
+  }
+  function viewToeicPara() {
+    render('<div class="view container toeic">' +
+      '<div class="view__head"><p class="crumb"><a href="#/toeic">ติว TOEIC</a>&ensp;/&ensp;Part 3, 4, 7</p><h1>คำถอดความ</h1><p>คำตอบที่ถูกใน Part 3, 4 และ 7 แทบไม่เคยใช้คำเดียวกับในบท แต่พูดความหมายเดิมด้วยคำอื่น คนที่ตอบตามคำที่ได้ยินมักโดนกับดัก รู้คู่คำเหล่านี้ไว้ จะเห็นคำตอบเร็วขึ้นมาก</p></div>' +
+      '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="tpart" data-p="pp" data-n="15">ฝึกจับคู่ 15 ข้อ</button></div>' +
+      '<div class="table-wrap"><table class="tq-table tq-para"><thead><tr><th scope="col">ในบทพูดหรือบทอ่าน</th><th scope="col">ตัวเลือกที่ถูกเขียนว่า</th><th scope="col">ความหมาย</th></tr></thead><tbody>' +
+      TQ.para.map(function (p) { return '<tr><td lang="en">' + esc(p[0]) + ' ' + sayBtn(p[0], 'ฟัง') + '</td><td lang="en"><b>' + esc(p[1]) + '</b></td><td>' + esc(p[2]) + '</td></tr>'; }).join('') +
+      '</tbody></table></div></div>', { focus: false });
   }
   function viewToeicGrammar() {
     render('<div class="view container toeic">' +
@@ -2136,7 +2265,7 @@
     var v = parts[0] || 'home', a = parts[1];
     if (v !== 'review') R = null;
     P = null;
-    if (TP) { TP.tok = 0; clearInterval(TP.timer); TP = null; }
+    if (TP) { TP.tok = 0; clearInterval(TP.timer); clearInterval(TP.wtimer); TP = null; }
     document.body.dataset.view = v;
     setNav(v === 'lesson' || v === 'check' ? 'home' : v);
     if (v === 'lesson' && byId[a]) { viewLesson(byId[a]); document.title = 'Stage ' + (byId[a].si + 1) + ', Lesson ' + (byId[a].li + 1) + ': ' + byId[a].en + ' | Speakeasy'; return; }
@@ -2156,6 +2285,7 @@
     if (v === 'toeic') {
       setNav('toeic');
       if (a === 'grammar') { document.title = 'TOEIC grammar | Speakeasy'; return viewToeicGrammar(); }
+      if (a === 'paraphrase' && TQ.para) { document.title = 'TOEIC paraphrase | Speakeasy'; return viewToeicPara(); }
       if (a && TPBY[a]) { document.title = 'TOEIC ' + TPBY[a].name + ' | Speakeasy'; return viewToeicPart(TPBY[a]); }
       document.title = 'TOEIC prep | Speakeasy'; return viewToeic();
     }
@@ -2187,7 +2317,14 @@
       case 'tmiss': tStart('miss'); break;
       case 'topt': tOpt(el); break;
       case 'tplay': tPlay(); break;
-      case 'tnext': if (TP) { if (TP.i >= TP.units.length - 1) tFinish(); else tGo(1); } break;
+      case 'tnext': tNext(); break;
+      case 'tsubmit': tFinish(); break;
+      case 'tgrid': if (TP) { TP.grid = !TP.grid; TP.confirm = false; tStop(); tRender(); } break;
+      case 'tjump': if (TP) { TP.grid = false; TP.i = +el.getAttribute('data-i'); tRender(); } break;
+      case 'ttag': tStart('tag', el.getAttribute('data-t'), 10); break;
+      case 'tspeed': tStart('speed', el.getAttribute('data-p'), +el.getAttribute('data-n')); break;
+      case 'tacc': S.tq.acc = S.tq.acc === false; save(); viewToeic(); var ta = $('[data-act="tacc"]'); if (ta) ta.focus(); break;
+      case 'tgoal': S.tq.goal = +el.getAttribute('data-g') || 0; save(); viewToeic(); var tg = $('[data-act="tgoal"][aria-pressed="true"]'); if (tg) tg.focus(); break;
       case 'tprev': if (TP && TP.i > 0) tGo(-1); break;
       case 'tskip': if (TP) { if (TP.i >= TP.units.length - 1) tFinish(); else tGo(1); } break;
       case 'ttext': if (TP) { TP.showText = !TP.showText; tRender(true); } break;
@@ -2304,7 +2441,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute && e.target.getAttribute('role') === 'button' && e.target.tagName !== 'BUTTON') { e.preventDefault(); e.target.click(); return; }
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     var tag = (e.target.tagName || '').toLowerCase();
-    if (TP && e.key === 'Escape') { e.preventDefault(); if (TP.confirm) { TP.confirm = false; $('#bar').innerHTML = tBar(TP.units[TP.i], TP.mode === 'mock'); } else if (!TP.over) tQuit(); else tLeave(); return; }
+    if (TP && e.key === 'Escape') { e.preventDefault(); if (TP.confirm) { TP.confirm = false; $('#bar').innerHTML = tBar(TP.units[TP.i], TP.mode === 'mock'); } else if (TP.grid) { TP.grid = false; tRender(); } else if (!TP.over) tQuit(); else tLeave(); return; }
     if (P) {
       var it = P.queue[0];
       if (e.key === 'Escape') { e.preventDefault(); if (P.confirmQuit) { P.confirmQuit = false; updateBar(); } else askQuit(); return; }
@@ -2326,6 +2463,7 @@
   });
   document.addEventListener('submit', function (e) { if (e.target.id === 'acct-form') { e.preventDefault(); submitAccount(e.target); } });
   window.addEventListener('hashchange', route);
+  window.addEventListener('beforeunload', function (e) { if (TP && TP.mode === 'mock' && !TP.over) { e.preventDefault(); e.returnValue = ''; } });
   window.addEventListener('storage', function (e) {
     if (e.key === 'speakeasy.session' && ACC) { ME = ACC.session(); S = sanitize(load()); chrome(); if (!P && !TP) route(); }
     else if (e.key === slotKey()) { S = sanitize(load()); chrome(); }
