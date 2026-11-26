@@ -1,7 +1,7 @@
 /* Speakeasy service worker: always try the network first so updates arrive at once,
    and keep the last good copy of every page and file for use without a connection.
    Requests to other sites (Firebase, Google Fonts) pass straight through. */
-var CACHE = 'speakeasy-v3';
+var CACHE = 'speakeasy-v4';
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {

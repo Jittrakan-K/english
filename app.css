@@ -674,7 +674,9 @@ td.nw, td.num { white-space: nowrap; }
   .tq-mock .actions { justify-content: flex-start; }
 }
 @media (max-width: 40rem) {
-  .tabs a.hide-s { display: none; }
+  .tabs { gap: 2px; padding-inline: 4px; }
+  .tabs a { flex: 1 1 0; min-width: 0; padding: 0 2px; gap: 2px; font-size: var(--text-xs); }
+  .tabs__count { position: absolute; top: 1px; right: 1px; min-width: 18px; height: 18px; padding: 0 3px; font-size: 11px; }
   .tq-mock, .tq-intro__what { padding: var(--space-lg); }
   .tq__sent { font-size: var(--text-xl); }
   .tq__scene p { font-size: var(--text-lg); }
