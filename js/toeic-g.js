@@ -1,4 +1,4 @@
-/* Speakeasy: ติว TOEIC ชุดเพิ่ม: Part 4 ฟังคนพูดคนเดียว */
+/* Fluent: ติว TOEIC ชุดเพิ่ม: Part 4 ฟังคนพูดคนเดียว */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};
 

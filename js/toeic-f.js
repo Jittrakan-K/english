@@ -1,4 +1,4 @@
-/* Speakeasy: ติว TOEIC ชุดเพิ่ม: Part 3 บทสนทนา
+/* Fluent: ติว TOEIC ชุดเพิ่ม: Part 3 บทสนทนา
    graphic: ตาราง หรือรายการที่ข้อสอบจริงพิมพ์ไว้ให้ดูคู่กับเสียง (คำถามแบบ Look at the graphic) */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};

@@ -1,4 +1,4 @@
-/* Speakeasy: ติว TOEIC ส่วนที่ 2: Part 3 บทสนทนา และ Part 4 ฟังคนพูดคนเดียว
+/* Fluent: ติว TOEIC ส่วนที่ 2: Part 3 บทสนทนา และ Part 4 ฟังคนพูดคนเดียว
    lines: [ผู้พูด, ประโยค] โดย M = ผู้ชาย, W = ผู้หญิง, M2/W2 = คนที่สาม */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};

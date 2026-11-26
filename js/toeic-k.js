@@ -1,4 +1,4 @@
-/* Speakeasy: แผนติว TOEIC ตามคะแนนเป้าหมาย */
+/* Fluent: แผนติว TOEIC ตามคะแนนเป้าหมาย */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};
 

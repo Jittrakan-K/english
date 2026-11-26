@@ -1,4 +1,4 @@
-/* Speakeasy: คำศัพท์ที่ออกสอบ TOEIC บ่อย จัดตามเรื่องในที่ทำงาน (id ขึ้นต้นด้วย toeic-) */
+/* Fluent: คำศัพท์ที่ออกสอบ TOEIC บ่อย จัดตามเรื่องในที่ทำงาน (id ขึ้นต้นด้วย toeic-) */
 (window.VOCAB = window.VOCAB || []).push({ lvl: 'B1', text: `
 @ toeic-office | TOEIC: ในออฟฟิศ | TOEIC: Around the office
 photocopier|n|เครื่องถ่ายเอกสาร

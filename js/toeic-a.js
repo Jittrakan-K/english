@@ -1,4 +1,4 @@
-/* Speakeasy: ติว TOEIC (Listening & Reading) ส่วนที่ 1: เทคนิค, Part 1, Part 2
+/* Fluent: ติว TOEIC (Listening & Reading) ส่วนที่ 1: เทคนิค, Part 1, Part 2
    ข้อสอบทั้งหมดเขียนขึ้นใหม่ตามรูปแบบข้อสอบจริง ไม่ได้คัดลอกจากข้อสอบของ ETS
    ans คือลำดับตัวเลือกที่ถูก (เริ่มที่ 0), why คือคำอธิบายภาษาไทย */
 (function () {

@@ -1,4 +1,4 @@
-/* Speakeasy: คลังศัพท์ชุดเพิ่มเติม (A2 ถึง C1) */
+/* Fluent: คลังศัพท์ชุดเพิ่มเติม (A2 ถึง C1) */
 (window.VOCAB = window.VOCAB || []).push({ lvl: 'A2', text: `
 @ a2-kitchen | ในครัวและของกิน | In the kitchen
 rice cooker|n|หม้อหุงข้าว

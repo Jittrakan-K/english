@@ -1,4 +1,4 @@
-/* Speakeasy: คลังศัพท์ระดับ C1 */
+/* Fluent: คลังศัพท์ระดับ C1 */
 (window.VOCAB = window.VOCAB || []).push({ lvl: 'C1', text: `
 @ c1-academic | ภาษาวิชาการ | Academic words
 hypothesis|n|สมมติฐาน

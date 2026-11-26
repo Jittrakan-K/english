@@ -1,4 +1,4 @@
-/* Speakeasy: แอปเรียนภาษาอังกฤษ (ไม่มี build step ไม่มี dependency)
+/* Fluent (ชื่อเดิม Speakeasy): แอปเรียนภาษาอังกฤษ (ไม่มี build step ไม่มี dependency)
    เก็บความคืบหน้าใน localStorage ใช้ Web Speech API สำหรับเสียงอ่านและการฟังเสียงพูด */
 (function () {
   'use strict';
@@ -2268,26 +2268,26 @@
     if (TP) { TP.tok = 0; clearInterval(TP.timer); clearInterval(TP.wtimer); TP = null; }
     document.body.dataset.view = v;
     setNav(v === 'lesson' || v === 'check' ? 'home' : v);
-    if (v === 'lesson' && byId[a]) { viewLesson(byId[a]); document.title = 'Stage ' + (byId[a].si + 1) + ', Lesson ' + (byId[a].li + 1) + ': ' + byId[a].en + ' | Speakeasy'; return; }
-    if (v === 'check' && stageById[a]) { viewCheck(stageById[a]); document.title = 'Stage ' + (stageById[a].si + 1) + ' test | Speakeasy'; return; }
+    if (v === 'lesson' && byId[a]) { viewLesson(byId[a]); document.title = 'Stage ' + (byId[a].si + 1) + ', Lesson ' + (byId[a].li + 1) + ': ' + byId[a].en + ' | Fluent'; return; }
+    if (v === 'check' && stageById[a]) { viewCheck(stageById[a]); document.title = 'Stage ' + (stageById[a].si + 1) + ' test | Fluent'; return; }
     if ((v === 'lesson' || v === 'check') && a) { viewHome(); app.insertAdjacentHTML('afterbegin', '<p class="container notice" role="status" style="margin-top: var(--space-lg)">ไม่พบบทเรียนนี้ ลิงก์อาจเก่าหรือพิมพ์ผิด เลือกบทจากเส้นทางด้านล่างได้เลย</p>'); return; }
     var titles = { toeic: 'TOEIC prep', review: 'Review', speak: 'Speaking room', words: 'Word bank', progress: 'Progress', account: 'Account' };
-    document.title = titles[v] ? titles[v] + ' | Speakeasy' : 'Speakeasy: English from zero to fluent';
-    if (v === 'mix') { document.title = 'Mixed practice | Speakeasy'; setNav('home'); startPlay('mix', null); return; }
+    document.title = titles[v] ? titles[v] + ' | Fluent' : 'Fluent: English from zero to fluent';
+    if (v === 'mix') { document.title = 'Mixed practice | Fluent'; setNav('home'); startPlay('mix', null); return; }
     if (v === 'review') return viewReview();
     if (v === 'speak') return viewSpeak();
     if (v === 'words') return viewWords();
-    if (v === 'read' && a && READBY[a]) { setNav('read'); viewRead(READBY[a]); document.title = 'Reading: ' + READBY[a].en + ' | Speakeasy'; return; }
-    if (v === 'read') { document.title = 'Reading | Speakeasy'; return viewReadList(); }
-    if (v === 'sreview') { document.title = 'Sentence review | Speakeasy'; setNav('review'); if (!dueSentences().length) { location.replace('#/review'); return; } startPlay('sreview', null); return; }
-    if (v === 'placement') { document.title = 'Placement test | Speakeasy'; setNav('home'); startPlay('place', null); return; }
-    if (v === 'pack' && VBYID[a]) { setNav('words'); viewPack(VBYID[a]); document.title = 'Words: ' + VBYID[a].en + ' (' + VBYID[a].lvl + ') | Speakeasy'; return; }
+    if (v === 'read' && a && READBY[a]) { setNav('read'); viewRead(READBY[a]); document.title = 'Reading: ' + READBY[a].en + ' | Fluent'; return; }
+    if (v === 'read') { document.title = 'Reading | Fluent'; return viewReadList(); }
+    if (v === 'sreview') { document.title = 'Sentence review | Fluent'; setNav('review'); if (!dueSentences().length) { location.replace('#/review'); return; } startPlay('sreview', null); return; }
+    if (v === 'placement') { document.title = 'Placement test | Fluent'; setNav('home'); startPlay('place', null); return; }
+    if (v === 'pack' && VBYID[a]) { setNav('words'); viewPack(VBYID[a]); document.title = 'Words: ' + VBYID[a].en + ' (' + VBYID[a].lvl + ') | Fluent'; return; }
     if (v === 'toeic') {
       setNav('toeic');
-      if (a === 'grammar') { document.title = 'TOEIC grammar | Speakeasy'; return viewToeicGrammar(); }
-      if (a === 'paraphrase' && TQ.para) { document.title = 'TOEIC paraphrase | Speakeasy'; return viewToeicPara(); }
-      if (a && TPBY[a]) { document.title = 'TOEIC ' + TPBY[a].name + ' | Speakeasy'; return viewToeicPart(TPBY[a]); }
-      document.title = 'TOEIC prep | Speakeasy'; return viewToeic();
+      if (a === 'grammar') { document.title = 'TOEIC grammar | Fluent'; return viewToeicGrammar(); }
+      if (a === 'paraphrase' && TQ.para) { document.title = 'TOEIC paraphrase | Fluent'; return viewToeicPara(); }
+      if (a && TPBY[a]) { document.title = 'TOEIC ' + TPBY[a].name + ' | Fluent'; return viewToeicPart(TPBY[a]); }
+      document.title = 'TOEIC prep | Fluent'; return viewToeic();
     }
     if (v === 'progress') return viewProgress();
     if (v === 'account') return viewAccount();
@@ -2391,7 +2391,7 @@
       case 'undoimport': if (prevState) { S = sanitize(JSON.parse(prevState)); S.r = Date.now(); prevState = null; save(); viewProgress(); setStatus('กลับไปใช้ข้อมูลเดิมแล้ว'); } break;
       case 'export': {
         var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'speakeasy-backup-' + dayKey() + '.json';
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fluent-backup-' + dayKey() + '.json';
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
         setStatus('ดาวน์โหลดไฟล์สำรองแล้ว'); break;
       }
@@ -2416,7 +2416,7 @@
     if (act === 'splevel') { SP.si = +el.value; SP.i = 0; SP.hint = false; SP.step = -1; SP.swap = false; viewSpeak(); var sl = $('#sp-level'); if (sl) sl.focus(); }
     if (act === 'import') {
       var f = el.files && el.files[0]; if (!f) return;
-      if (f.size > 5 * 1024 * 1024) { setStatus('ไฟล์ใหญ่เกินไปสำหรับไฟล์สำรอง เลือกไฟล์ที่ชื่อขึ้นต้นด้วย speakeasy-backup', true); el.value = ''; return; }
+      if (f.size > 5 * 1024 * 1024) { setStatus('ไฟล์ใหญ่เกินไปสำหรับไฟล์สำรอง เลือกไฟล์ที่ชื่อขึ้นต้นด้วย fluent-backup หรือ speakeasy-backup', true); el.value = ''; return; }
       var fr = new FileReader();
       fr.onload = function () {
         try {
@@ -2425,7 +2425,7 @@
           prevState = JSON.stringify(S);
           S = sanitize(data); S.r = Date.now(); save(); viewProgress(); setStatus('โหลดความคืบหน้าจากไฟล์แล้ว: ผ่าน ' + fmt(totalDone()) + ' บท ' + fmt(S.xp) + ' แต้ม');
           var stt = $('#set-status'); if (stt) stt.insertAdjacentHTML('beforeend', ' <button class="link" type="button" data-act="undoimport">ย้อนกลับเป็นข้อมูลเดิม</button>');
-        } catch (x) { setStatus('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Speakeasy เลือกไฟล์ที่ชื่อขึ้นต้นด้วย speakeasy-backup', true); }
+        } catch (x) { setStatus('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Fluent เลือกไฟล์ที่ชื่อขึ้นต้นด้วย fluent-backup หรือ speakeasy-backup', true); }
       };
       fr.onerror = function () { setStatus('อ่านไฟล์ไม่สำเร็จ ลองเลือกไฟล์อีกครั้ง', true); };
       fr.readAsText(f); el.value = '';

@@ -1,4 +1,4 @@
-/* Speakeasy: คลังศัพท์ระดับ B2 */
+/* Fluent: คลังศัพท์ระดับ B2 */
 (window.VOCAB = window.VOCAB || []).push({ lvl: 'B2', text: `
 @ b2-business | ธุรกิจ | Business
 business|n|ธุรกิจ

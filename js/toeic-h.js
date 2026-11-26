@@ -1,4 +1,4 @@
-/* Speakeasy: ติว TOEIC ชุดเพิ่ม: Part 5 และ Part 6 */
+/* Fluent: ติว TOEIC ชุดเพิ่ม: Part 5 และ Part 6 */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};
 

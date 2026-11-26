@@ -1,4 +1,4 @@
-/* Speakeasy: คำถอดความ (paraphrase) ที่ TOEIC ใช้บ่อย
+/* Fluent: คำถอดความ (paraphrase) ที่ TOEIC ใช้บ่อย
    [สิ่งที่ได้ยินหรืออ่านในบท, คำที่ตัวเลือกใช้แทน, ความหมาย] */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};

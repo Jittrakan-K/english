@@ -1,4 +1,4 @@
-/* Speakeasy: ติว TOEIC ชุดเพิ่ม: Part 7 เอกสารเรื่องเดียว
+/* Fluent: ติว TOEIC ชุดเพิ่ม: Part 7 เอกสารเรื่องเดียว
    [1] [2] [3] [4] ในเนื้อเรื่องคือตำแหน่งสำหรับคำถามแทรกประโยค */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};

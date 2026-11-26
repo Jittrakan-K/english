@@ -1,4 +1,4 @@
-/* Speakeasy: หัวข้อพูดจับเวลา และคลังวลีช่วยให้พูดลื่น
+/* Fluent: หัวข้อพูดจับเวลา และคลังวลีช่วยให้พูดลื่น
    TOPICS: q คำถาม/หัวข้อ, th คำแปล, help วลีช่วยเริ่ม, sample ตัวอย่างคำตอบ (อ่านหลังพูดเสร็จ) */
 window.TOPICS = [
   { lvl: 'A1', q: 'Introduce yourself.', th: 'แนะนำตัวเอง', help: ['My name is ...', 'I am ... years old.', 'I live in ...', 'I like ...'], sample: 'Hi, my name is Nok. I am twenty-five years old and I live in Bangkok. I am a nurse. I like music and cooking. I have one sister.' },

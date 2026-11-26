@@ -1,4 +1,4 @@
-/* Speakeasy: ติว TOEIC ชุดเพิ่ม: Part 1 และ Part 2 (ต่อท้ายข้อเดิม ลำดับเดิมไม่เปลี่ยน) */
+/* Fluent: ติว TOEIC ชุดเพิ่ม: Part 1 และ Part 2 (ต่อท้ายข้อเดิม ลำดับเดิมไม่เปลี่ยน) */
 (function () {
   var T = window.TOEIC = window.TOEIC || {};
 

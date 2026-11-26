@@ -1,4 +1,4 @@
-/* Speakeasy: คลังศัพท์ระดับ B1 */
+/* Fluent: คลังศัพท์ระดับ B1 */
 (window.VOCAB = window.VOCAB || []).push({ lvl: 'B1', text: `
 @ b1-work | การทำงาน | At work
 career|n|อาชีพการงาน / เส้นทางอาชีพ

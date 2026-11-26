@@ -1,4 +1,4 @@
-/* Speakeasy: คลังศัพท์ระดับ A2 */
+/* Fluent: คลังศัพท์ระดับ A2 */
 (window.VOCAB = window.VOCAB || []).push({ lvl: 'A2', text: `
 @ a2-personality | นิสัยและลักษณะคน | Personality
 friendly|adj|เป็นมิตร

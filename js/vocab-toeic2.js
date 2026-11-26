@@ -1,4 +1,4 @@
-/* Speakeasy: คำศัพท์ TOEIC ชุดที่สอง (id ขึ้นต้นด้วย toeic-) */
+/* Fluent: คำศัพท์ TOEIC ชุดที่สอง (id ขึ้นต้นด้วย toeic-) */
 (window.VOCAB = window.VOCAB || []).push({ lvl: 'B1', text: `
 @ toeic-it | TOEIC: คอมพิวเตอร์และไอที | TOEIC: Computers and IT
 software update|n|การอัปเดตซอฟต์แวร์
