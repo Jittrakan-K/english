@@ -16,7 +16,7 @@
     { kind: 'ประกาศ', title: 'Notice to customers',
       text: 'Greenleaf Supermarket is pleased to announce that our store hours are {1}. Starting April 1, we will open at 7 a.m. instead of 8 a.m., and we will close at 11 p.m. This change is a {2} to the many requests we have received from customers who shop before work. {3}, our bakery will now offer fresh bread from opening time. {4}',
       qs: [
-        { opts: ['extend', 'extending', 'being extended', 'extension'], ans: 2, why: 'are being extended = กำลังถูกขยาย (passive continuous) เวลาเปิดถูกขยายให้นานขึ้น' },
+        { opts: ['extend', 'extends', 'being extended', 'extension'], ans: 2, why: 'are being extended = กำลังถูกขยาย (passive continuous) เวลาเปิดถูกขยายให้นานขึ้น' },
         { opts: ['response', 'respond', 'responsive', 'responded'], ans: 0, why: 'a ___ to ต้องเป็นคำนาม response = การตอบสนอง' },
         { opts: ['However', 'In addition', 'Otherwise', 'Instead'], ans: 1, why: 'เพิ่มข้อมูลดี ๆ อีกเรื่อง ใช้ In addition = นอกจากนี้' },
         { opts: ['We apologize for the price increase.', 'We look forward to serving you earlier.', 'The bakery will close next month.', 'Parking is not available at night.'], ans: 1, why: 'ปิดประกาศเรื่องเปิดเช้าขึ้น ประโยคที่เข้ากันคือ ยินดีให้บริการคุณเร็วขึ้น' }

@@ -45,7 +45,7 @@ window.COURSE = [
     ],
     words: [["hello","สวัสดี"],["hi","หวัดดี (กันเอง)"],["good morning","สวัสดีตอนเช้า"],["good afternoon","สวัสดีตอนบ่าย"],["good evening","สวัสดีตอนเย็น"],["goodbye","ลาก่อน"],["thank you","ขอบคุณ"],["sorry","ขอโทษ"],["please","กรุณา / ได้โปรด"],["see you later","แล้วเจอกันนะ"]],
     sents: [
-      ["Hello, I am Nok.", "สวัสดี ฉันชื่อนก"],
+      ["Hello, my name is Nok.", "สวัสดี ฉันชื่อนก"],
       ["Good morning! How are you?", "อรุณสวัสดิ์ สบายดีไหม"],
       ["I'm fine, thank you. And you?", "สบายดี ขอบคุณ แล้วคุณล่ะ"],
       ["Nice to meet you.", "ยินดีที่ได้รู้จัก"],
@@ -119,7 +119,7 @@ window.COURSE = [
     words: [["mother","แม่"],["father","พ่อ"],["sister","พี่สาว / น้องสาว"],["brother","พี่ชาย / น้องชาย"],["son","ลูกชาย"],["daughter","ลูกสาว"],["husband","สามี"],["wife","ภรรยา"],["family","ครอบครัว"],["children","ลูก ๆ / เด็ก ๆ"]],
     sents: [
       ["I have two brothers.", "ฉันมีพี่น้องผู้ชายสองคน"],
-      ["She has an older sister.", "เธอมีพี่สาวหนึ่งคน"],
+      ["She has an older sister.", "เธอมีพี่สาว"],
       ["This is my mother.", "นี่คือแม่ของฉัน"],
       ["Do you have any children?", "คุณมีลูกไหม"],
       ["My family is small.", "ครอบครัวของฉันเป็นครอบครัวเล็ก ๆ"]
@@ -659,7 +659,7 @@ window.COURSE = [
     sents: [
       ["I was wondering if you could help me.", "ไม่ทราบว่าคุณพอจะช่วยฉันได้ไหม"],
       ["Would you mind closing the window?", "รบกวนช่วยปิดหน้าต่างได้ไหม"],
-      ["It seems there's been a misunderstanding.", "ดูเหมือนจะมีความเข้าใจผิดกันนะ"],
+      ["It seems there's been a misunderstanding.", "ดูเหมือนจะเกิดความเข้าใจผิดกันขึ้นแล้วนะ"],
       ["I'm afraid I can't make it.", "ขอโทษนะ ฉันคงไปไม่ได้"],
       ["This might be slightly over budget.", "อันนี้อาจเกินงบไปเล็กน้อย"]
     ]
@@ -762,7 +762,7 @@ window.COURSE = [
     words: [["gonna","going to (จะ)"],["wanna","want to (อยาก)"],["gotta","have got to (ต้อง)"],["kinda","kind of (ค่อนข้าง)"],["lemme","let me (ให้ฉัน)"],["dunno","don't know (ไม่รู้)"],["gimme","give me (ขอ / ให้ฉัน)"],["whaddya","what do you (คุณ...อะไร)"],["sorta","sort of (ประมาณว่า)"],["y'all","you all (พวกคุณทุกคน)"]],
     sents: [
       ["I'm gonna grab a coffee.", "ฉันจะไปเอากาแฟหน่อย"],
-      ["Do you wanna come with us?", "อยากไปด้วยกันไหม"],
+      ["Do you wanna come with us?", "อยากไปด้วยกันไหม (พูดแบบกันเอง)"],
       ["Sorry, I gotta go.", "ขอโทษนะ ต้องไปแล้ว"],
       ["Lemme think about it.", "ขอคิดดูก่อน"],
       ["I dunno, it's kinda weird.", "ไม่รู้สิ มันแปลก ๆ นะ"]

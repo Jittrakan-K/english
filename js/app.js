@@ -644,10 +644,16 @@
      available). Clashing entries are never offered as wrong choices, never share a matching round,
      and a typed answer is accepted for any entry with the same Thai meaning. */
   function thSegs(t) { return String(t).replace(/\([^)]*\)/g, ' ').split('/').map(function (x) { return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean); }
+  /* WordNet synonyms among the site's own words (js/syn.js): glad and happy, buy and purchase */
+  var SYNSETS = {};
+  function synList(kind, w) { var k = kind + ':' + w; if (!SYNSETS[k]) { var raw = ((window.SYN || {})[kind] || {})[w]; SYNSETS[k] = raw ? raw.split('|') : []; } return SYNSETS[k]; }
+  function wordKey(x) { return String(x).replace(/\s*\([^)]*\)/g, '').trim().toLowerCase(); }
+  function synNear(a, b) { a = wordKey(a); b = wordKey(b); return a !== b && (synList('d', a).indexOf(b) !== -1 || synList('d', b).indexOf(a) !== -1); }
   function clash(a, b) {
     if (norm(a[0]) === norm(b[0])) return true;
+    if (synNear(a[0], b[0])) return true;
     var A = thSegs(a[1]), B = thSegs(b[1]);
-    return A.some(function (x) { return B.some(function (y) { return x === y || x.indexOf(y) === 0 || y.indexOf(x) === 0; }); });
+    return A.some(function (x) { return B.some(function (y) { return x === y || (x.length >= 2 && y.indexOf(x) !== -1) || (y.length >= 2 && x.indexOf(y) !== -1); }); });
   }
   var ALLWORDS = null;
   function allWords() { return ALLWORDS || (ALLWORDS = LESSONS.concat(VPACKS).reduce(function (a, l) { return a.concat(l.words || []); }, [])); }
@@ -656,12 +662,20 @@
     return allWords().filter(function (x) { return thSegs(x[1]).some(function (t) { return mine.indexOf(t) !== -1; }); }).map(function (x) { return x[0]; });
   }
   /* n wrong choices for entry w, taken in order from the candidate entries, side 0 = English, 1 = Thai */
+  /* the same English (or Thai) can sit in several packs with different meanings: a wrong choice
+     must clash with none of them, since the learner sees only the text */
+  var BYSIDE = null;
+  function sameText(x, side) {
+    if (!BYSIDE) { BYSIDE = [{}, {}]; allWords().forEach(function (y) { [0, 1].forEach(function (sd) { var k = String(y[sd]).toLowerCase(); (BYSIDE[sd][k] = BYSIDE[sd][k] || []).push(y); }); }); }
+    return BYSIDE[side][String(x[side]).toLowerCase()] || [x];
+  }
+  function clashAny(w, x, side) { return clash(w, x) || sameText(x, side).some(function (y) { return clash(w, y); }) || sameText(w, 1 - side).some(function (y) { return clash(y, x); }); }
   function wrongChoices(w, cands, n, side) {
     var seen = {}, out = [];
     seen[w[side].toLowerCase()] = 1;
     for (var i = 0; i < cands.length && out.length < n; i++) {
       var x = cands[i], k = x[side].toLowerCase();
-      if (seen[k] || clash(w, x)) continue;
+      if (seen[k] || clashAny(w, x, side)) continue;
       seen[k] = 1; out.push(x[side]);
     }
     return out;
@@ -688,7 +702,7 @@
   }
   function matchSet(list, n) {
     var out = [];
-    for (var i = 0; i < list.length && out.length < n; i++) { var x = list[i]; if (!out.some(function (o) { return clash(o, x); })) out.push(x); }
+    for (var i = 0; i < list.length && out.length < n; i++) { var x = list[i]; if (!out.some(function (o) { return clashAny(o, x, 0) || clashAny(o, x, 1); })) out.push(x); }
     return out;
   }
   function distract(answer, ordered, n) {
@@ -713,9 +727,30 @@
   function typable(w) { return w[0].length <= 18 && !/\.\.\.|…|\//.test(w[0]); }
   function typeWord(w) { return { t: 'type', q: 'พิมพ์เป็นภาษาอังกฤษ', bigTh: w[1], hintSay: w[0], ans: w[0], alts: sameMeaning(w), en: w[0], th: w[1] }; }
   function tileable(s) { var n = tokensOf(s[0]).length; return n >= 3 && n <= 12; }
+  /* an extra tile must not be able to stand in for a word of the answer: no small grammar words
+     (is/are, he/she, a/the, much/any, in/on), no other form of an answer word (go/went), no synonym,
+     no number, so the only sentence the tiles can build is the answer */
+  var FUNCW = ('a an the this that these those some any many much more most few little lot lots no not none every each all both either neither other another such own enough ' +
+    'i me my mine myself you your yours yourself yourselves he him his himself she her hers herself it its itself we us our ours ourselves they them their theirs themselves one ones ' +
+    'am is are was were be been being do does did done doing have has had having will would shall should can could may might must ought need dare going gonna ' +
+    "isn't aren't wasn't weren't don't doesn't didn't haven't hasn't hadn't won't wouldn't can't cannot couldn't shouldn't mustn't i'm you're he's she's it's we're they're i've you've we've they've i'll you'll he'll she'll we'll they'll i'd you'd he'd she'd we'd they'd that's there's here's what's where's who's how's let's " +
+    'in on at to for from of with without by about into onto over under above below between among through during before after since until till up down out off near around across along behind beside inside outside past toward towards per via than as like ' +
+    'and or but so because if when while although though unless whether yet also too very really quite rather just only even still already ever never always usually often sometimes rarely seldom again ' +
+    'what which who whom whose where when why how there here then now today tomorrow yesterday tonight ago soon later yes no not please ok okay well').split(' ');
+  function sameFamily(a, b) {
+    a = a.toLowerCase(); b = b.toLowerCase();
+    if (a === b) return true;
+    var stem = function (w) { return w.replace(/(ies|ied)$/, 'y').replace(/(es|ed|ing|er|est|s|ly)$/, '').replace(/([b-df-hj-np-tv-z])\1$/, '$1').replace(/e$/, ''); };
+    return stem(a) === stem(b) || (a.length > 3 && b.length > 3 && a.slice(0, 4) === b.slice(0, 4));
+  }
+  function safeExtra(t, toks) {
+    var k = t.toLowerCase();
+    if (FUNCW.indexOf(k) !== -1 || /\d/.test(k) || /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|first|second|third|half|quarter|twice)$/.test(k)) return false;
+    return !toks.some(function (a) { return sameFamily(a, k) || synNear(a, k); });
+  }
   function tilesItem(s, others, dictation) {
     var toks = tokensOf(s[0]), lower = toks.map(function (t) { return t.toLowerCase(); });
-    var extra = shuffle(others.reduce(function (a, o) { return a.concat(tokensOf(o[0])); }, [])).filter(function (t) { return lower.indexOf(t.toLowerCase()) === -1; });
+    var extra = shuffle(others.reduce(function (a, o) { return a.concat(tokensOf(o[0])); }, [])).filter(function (t) { return lower.indexOf(t.toLowerCase()) === -1 && safeExtra(t, toks); });
     var uniq = []; extra.forEach(function (t) { if (uniq.map(function (u) { return u.toLowerCase(); }).indexOf(t.toLowerCase()) === -1) uniq.push(t); });
     var bank = shuffle(toks.concat(uniq.slice(0, dictation ? 1 : 2)));
     return dictation
@@ -748,7 +783,7 @@
     return out;
   }
   function fixItem(f) {
-    return { t: 'mcq', q: 'ประโยคไหนถูกต้องและเป็นธรรมชาติ', fix: true, opts: shuffle([f[0], f[1]]), optEn: true, ans: f[1], en: f[1], why: f[2] };
+    return { t: 'mcq', q: f[3] || 'ประโยคไหนถูกต้องและเป็นธรรมชาติ', fix: true, opts: shuffle([f[0], f[1]]), optEn: true, ans: f[1], en: f[1], why: f[2] };
   }
   function matchItem(ws, more) { return { t: 'match', q: 'จับคู่คำศัพท์กับความหมาย', pairs: matchSet(ws.concat(more || []), 5) }; }
   function dictItem(s) { return { t: 'type', q: 'ฟังแล้วพิมพ์ประโยคที่ได้ยิน', listen: s[0], dict: true, ans: s[0], en: s[0], th: s[1] }; }
@@ -757,7 +792,7 @@
     var lw = (l && l.words || []).filter(function (w) { return (' ' + norm(s[0])).indexOf(' ' + norm(w[0])) !== -1 && norm(w[0]).length > 2; }).map(function (w) { return w[0]; });
     return { t: 'type', trans: true, q: 'แปลประโยคนี้เป็นภาษาอังกฤษ', bigTh: s[1], ans: s[0], en: s[0], th: s[1], hint: lw.slice(0, 3).join(', ') };
   }
-  var CONTR = { "i'm": 'i am', "you're": 'you are', "we're": 'we are', "they're": 'they are', "he's": 'he is', "she's": 'she is', "it's": 'it is', "that's": 'that is', "there's": 'there is', "what's": 'what is', "where's": 'where is', "don't": 'do not', "doesn't": 'does not', "didn't": 'did not', "isn't": 'is not', "aren't": 'are not', "wasn't": 'was not', "weren't": 'were not', "can't": 'cannot', "couldn't": 'could not', "won't": 'will not', "wouldn't": 'would not', "shouldn't": 'should not', "mustn't": 'must not', "haven't": 'have not', "hasn't": 'has not', "i'll": 'i will', "you'll": 'you will', "we'll": 'we will', "they'll": 'they will', "i've": 'i have', "we've": 'we have', "you've": 'you have', "i'd": 'i would', "you'd": 'you would', "let's": 'let us', "there're": 'there are', "who's": 'who is', "how's": 'how is', "here's": 'here is' };
+  var CONTR = { "i'm": 'i am', "you're": 'you are', "we're": 'we are', "they're": 'they are', "he's": 'he is', "she's": 'she is', "it's": 'it is', "that's": 'that is', "there's": 'there is', "what's": 'what is', "where's": 'where is', "don't": 'do not', "doesn't": 'does not', "didn't": 'did not', "isn't": 'is not', "aren't": 'are not', "wasn't": 'was not', "weren't": 'were not', "can't": 'cannot', "couldn't": 'could not', "won't": 'will not', "wouldn't": 'would not', "shouldn't": 'should not', "mustn't": 'must not', "haven't": 'have not', "hasn't": 'has not', "i'll": 'i will', "you'll": 'you will', "we'll": 'we will', "they'll": 'they will', "i've": 'i have', "we've": 'we have', "you've": 'you have', "i'd": 'i would', "you'd": 'you would', "let's": 'let us', "there're": 'there are', "who's": 'who is', "how's": 'how is', "here's": 'here is', gonna: 'going to', wanna: 'want to', gotta: 'got to', lemme: 'let me', gimme: 'give me', dunno: 'do not know', kinda: 'kind of' };
   /* I'm = I am, can't = cannot = can not: written either way, a sentence counts as the same */
   function sentKey(x) {
     return norm(spoken(String(x).replace(/[’‘]/g, "'"))).split(' ').map(function (t) { return CONTR[t] || t; }).join(' ').replace(/\bcan not\b/g, 'cannot');
@@ -771,6 +806,86 @@
     var m = /^(it|that|this) is (.+)$/.exec(a); if (!m) return false;
     if (/^(going|raining|snowing|getting|worth|time|about|said|been|not|ok|okay|fine)\b/.test(m[2])) return false;
     return g === m[2];
+  }
+  /* other word orders and forms that say what the answer says: a clause moved to the other side
+     ("I'll stay home if it rains"), two things joined by and/or in the other order, sometimes/usually
+     at the start or the end, a time phrase moved, and he or she when the Thai only says เขา */
+  var FREQW = ['sometimes', 'usually', 'often', 'normally', 'occasionally', 'generally', 'frequently'];
+  var CLAUSEW = /^(if|when|whenever|because|before|after|although|though|while|whereas|unless|until|once|since|despite)$/;
+  var PREPW = ['in', 'at', 'on', 'near', 'by', 'during', 'after', 'before', 'around'];
+  var MOVEW = ['suddenly', 'finally', 'already', 'outside', 'inside', 'actually'];
+  var DETW = ['a', 'an', 'the', 'my', 'your', 'his', 'her', 'our', 'their', 'this', 'that', 'these', 'those', 'its'];
+  var REPV = ['said', 'say', 'says', 'told', 'tell', 'think', 'thought', 'know', 'knew', 'hope', 'believe', 'sure', 'afraid', 'promised', 'explained', 'realized', 'realised', 'heard', 'show', 'shows', 'showed', 'found', 'decided', 'agreed', 'mean', 'felt', 'guess', 'suppose', 'glad', 'seems', 'concede', 'admit', 'admitted', 'wish', 'me', 'him', 'her', 'us', 'them', 'you'];
+  var SUBJW = ['i', 'you', 'we', 'they', 'he', 'she', 'it'];
+  function genderForms(A, th) {
+    var t = String(th || '').replace(/พวกเขา/g, '');
+    if (t.indexOf('เขา') === -1 || /ผู้ชาย|ผู้หญิง/.test(t)) return [A];
+    var sw = { he: ['she'], she: ['he'], him: ['her'], his: ['her'], himself: ['herself'], herself: ['himself'], hers: ['his'], her: ['him', 'his'] };
+    var out = [[]];
+    A.forEach(function (w) {
+      var opts = sw[w] ? [w].concat(sw[w]) : [w], next = [];
+      out.forEach(function (o) { opts.forEach(function (x) { if (next.length < 32) next.push(o.concat(x)); }); });
+      out = next;
+    });
+    return out;
+  }
+  /* words English may leave out or swap without changing the meaning: "said (that) she was tired",
+     "the phone (which) I bought", which = that in the middle of a sentence, a = one */
+  function optNorm(W) {
+    var out = [];
+    W.forEach(function (w, i) {
+      var prev = out.length ? out[out.length - 1] : '';
+      if (w === 'that' && REPV.indexOf(prev) !== -1 && i < W.length - 1) return;
+      if ((w === 'which' || w === 'that' || w === 'who' || w === 'whom') && i > 0 && SUBJW.indexOf(W[i + 1]) !== -1 && REPV.indexOf(prev) === -1 && prev !== 'is' && prev !== 'was') return;
+      if (w === 'which' && i > 0) w = 'that';
+      if (w === 'an' || w === 'one') w = 'a';
+      out.push(w);
+    });
+    return out;
+  }
+  function reorders(A, rawAns) {
+    var out = [];
+    var m = /^\s*(if|when|whenever|because|before|after|although|though|while|unless|until|once|since|as soon as)\s+([^,]+),\s*(.+?)[.?!]*\s*$/i.exec(rawAns || '');
+    if (m) out.push(sentKey(m[3] + ' ' + m[1] + ' ' + m[2]).split(' '));
+    var lead = /^\s*([^,]+),\s*(.+?)[.?!]*\s*$/.exec(rawAns || '');
+    if (lead && sentKey(lead[1]).split(' ').length <= 4) out.push(sentKey(lead[2] + ' ' + lead[1]).split(' '));
+    for (var k0 = 2; k0 < A.length - 1; k0++) if (PREPW.indexOf(A[k0]) !== -1 && A.length - k0 <= 5) out.push(A.slice(k0).concat(A.slice(0, k0)));
+    if (PREPW.indexOf(A[0]) !== -1) for (var k1 = 2; k1 <= 4 && k1 < A.length - 1; k1++) out.push(A.slice(k1).concat(A.slice(0, k1)));
+    A.forEach(function (w, i) {
+      if (MOVEW.indexOf(w) === -1) return;
+      var rest = A.slice(0, i).concat(A.slice(i + 1));
+      for (var j = 0; j <= rest.length; j++) if (j !== i && (j === 0 || DETW.indexOf(rest[j - 1]) === -1)) out.push(rest.slice(0, j).concat(w, rest.slice(j)));
+    });
+    for (var k2 = 1; k2 < A.length - 2; k2++) if ((A[k2] === 'in' && A[k2 + 1] === 'case') || (A[k2] === 'as' && A[k2 + 1] === 'long' && A[k2 + 2] === 'as') || (A[k2] === 'according' && A[k2 + 1] === 'to')) out.push(A.slice(k2).concat(A.slice(0, k2)));
+    for (var k = 1; k < A.length - 1; k++) if (CLAUSEW.test(A[k]) || (A[k] === 'as' && A[k + 1] === 'soon')) out.push(A.slice(k).concat(A.slice(0, k)));
+    A.forEach(function (w, i) {
+      if (w !== 'and' && w !== 'or') return;
+      for (var p = 1; p <= 3; p++) for (var q = 1; q <= 3; q++) {
+        if (i - p < 0 || i + q >= A.length) continue;
+        out.push(A.slice(0, i - p).concat(A.slice(i + 1, i + 1 + q), [w], A.slice(i - p, i), A.slice(i + 1 + q)));
+      }
+    });
+    A.forEach(function (w, i) {
+      if (FREQW.indexOf(w) === -1) return;
+      var rest = A.slice(0, i).concat(A.slice(i + 1));
+      out.push([w].concat(rest)); out.push(rest.concat(w));
+    });
+    return out;
+  }
+  function synSwap(A, G) {
+    if (A.length !== G.length) return false;
+    var diff = 0;
+    for (var i = 0; i < A.length; i++) if (A[i] !== G[i]) { if (!synNear(A[i], G[i])) return false; diff++; }
+    return diff > 0;
+  }
+  function altOK(given, ans, th) {
+    var G = optNorm(sentKey(given).split(' ')), g = G.join(' ');
+    return genderForms(sentKey(ans).split(' '), th).some(function (A0) {
+      var A = optNorm(A0);
+      if (A.join(' ') === g || synSwap(A, G)) return true;
+      if (movedTime(G, A) || movedTime(A, G) || movedPlease(G, A)) return true;
+      return reorders(A, ans).some(function (v) { v = optNorm(v); return v.join(' ') === g || synSwap(v, G); });
+    });
   }
   function shortSent(list) { return shuffle(list.filter(function (s) { var n = tokensOf(s[0]).length; return n >= 3 && n <= 8; }))[0]; }
   function withKey(it, l, w) { if (l && w) it.k = l.id + '|' + w[0]; return it; }
@@ -921,14 +1036,14 @@
         '<div class="feedback__side"><button class="btn btn--line btn--lg" type="button" data-act="quityes">ออก</button><button class="btn btn--primary btn--lg" type="button" data-act="quitno" id="next">ทำต่อ</button></div></div></div>';
     }
     if (P.phase === 'feedback') {
-      var good = P.lastRight;
+      var good = P.lastRight, selfOk = !good && it.trans && P.given && compare(it.ans, [P.given]).score >= 0.4;
       var head = good ? ['ถูกต้อง', 'ใช่เลย', 'เยี่ยม', 'แม่นมาก'][Math.floor(Math.random() * 4)] : 'ยังไม่ใช่';
       var body;
       if (it.t === 'match') body = good ? '<p>จับคู่ครบ ' + it.pairs.length + ' คู่' + (P.mm.miss ? ' พลาด ' + P.mm.miss + ' ครั้ง' : ' ไม่พลาดเลย') + '</p>' : '<p>พลาด ' + P.mm.miss + ' ครั้ง คู่ที่ถูกคือ</p><p class="th">' + it.pairs.map(function (w) { return '<span lang="en">' + esc(w[0]) + '</span> = ' + esc(w[1]); }).join('&emsp;') + '</p>';
       else if (it.fix) body = (good ? '<p lang="en">' + esc(it.ans) + '</p>' : '<p>ประโยคที่ถูกคือ <b lang="en">' + esc(it.ans) + '</b></p>') + '<p class="th">' + esc(it.why) + '</p>';
       else if ((it.t === 'tiles' || it.trans) && !good && P.tileDiff) {
         var d = P.tileDiff, en = function (a) { return a.map(function (x) { return '<b lang="en">' + esc(x) + '</b>'; }).join(', '); };
-        var why = d.extra.length === 1 && d.missing.length === 1 ? 'ต้องใช้ ' + en(d.missing) + ' ไม่ใช่ ' + en(d.extra)
+        var why = d.extra.length === 1 && d.missing.length === 1 ? (it.trans ? 'เฉลยใช้ ' + en(d.missing) + ' ตรงที่คุณใช้ ' + en(d.extra) : 'ต้องใช้ ' + en(d.missing) + ' ไม่ใช่ ' + en(d.extra))
           : d.extra.length || d.missing.length ? (d.extra.length ? 'คำที่ไม่อยู่ในประโยค: ' + en(d.extra) : '') + (d.extra.length && d.missing.length ? ' / ' : '') + (d.missing.length ? 'ยังขาดคำ: ' + en(d.missing) : '')
           : 'คำครบแล้ว แต่ลำดับยังไม่ถูก';
         if (it.trans && d.extra.length + d.missing.length > 4) why = 'ลองเทียบกับเฉลยทีละส่วน แล้วพูดประโยคนี้ตามสักสองรอบ';
@@ -941,8 +1056,9 @@
           ? '<p>คำตอบคือ <b>' + esc(it.ans) + '</b></p><p class="th"><span lang="en">' + esc(it.en) + '</span> แปลว่า ' + esc(it.th) + '</p>'
           : '<p>คำตอบคือ <b lang="en">' + esc(it.ans) + '</b></p>' + (it.th && it.t !== 'pair' ? '<p class="th">' + esc(it.th) + '</p>' : ''));
       return '<div class="feedback" data-mark="' + (good ? 'right' : 'wrong') + '" role="status"><div class="container feedback__in">' +
-        '<div class="feedback__msg"><h2>' + head + '</h2>' + body + '</div>' +
-        '<div class="feedback__side">' + (it.en ? sayBtn(it.en) : '') + '<button class="btn btn--primary btn--lg" type="button" data-act="next" id="next">ไปต่อ</button></div></div></div>';
+        '<div class="feedback__msg"><h2>' + head + '</h2>' + body +
+        (selfOk ? '<p class="th">ประโยคไทยแปลเป็นอังกฤษได้หลายแบบ ถ้าคำตอบของคุณความหมายเดียวกับเฉลย กดนับว่าถูกได้</p>' : '') +
+        '</div><div class="feedback__side">' + (selfOk ? '<button class="btn btn--line" type="button" data-act="selfok">คำตอบของฉันก็ถูก</button>' : '') + (it.en ? sayBtn(it.en) : '') + '<button class="btn btn--primary btn--lg" type="button" data-act="next" id="next">ไปต่อ</button></div></div></div>';
     }
     var left = '', right = '';
     if (it.t === 'mcq' || it.t === 'pair') left = '<p class="muted small"><span class="kbd-hint">กดเลข 1 ถึง ' + it.opts.length + ' หรือ</span> แตะคำตอบ</p>';
@@ -999,6 +1115,7 @@
   }
   function settle(right, scored) {
     var it = P.queue[0];
+    P.ssBefore = it.en && S.ss[it.en] ? JSON.stringify(S.ss[it.en]) : null;
     trackSentence(it, right);
     if (P.kind === 'place') { P.byStage = P.byStage || []; P.byStage[it.si] = (P.byStage[it.si] || 0) + (right ? 1 : 0); }
     P.phase = 'feedback'; P.lastRight = right;
@@ -1182,7 +1299,10 @@
     if (!right && it.dict) { var r = compare(it.ans, [given]); right = r.score >= 0.85; P.dictMark = markWords(it.ans, r.ok); }
     if (!right && it.t === 'type') right = norm(given).replace(/'/g, '') === norm(it.ans).replace(/'/g, '');
     if (!right && !it.listen && (it.t === 'tiles' || it.t === 'type')) right = dropIt(given, it.ans, it.th || it.bigTh);
+    if (!right && !it.listen && (it.t === 'tiles' || it.trans)) right = altOK(given, it.ans, it.th || it.bigTh);
+    if (!right && it.t === 'type' && !it.trans && !it.dict && !it.listen) { var gk = wordKey(given); right = synList('t', wordKey(it.ans)).indexOf(gk) !== -1 || synNear(it.ans, gk); if (right) P.synOk = true; }
     if (!right && it.trans) { var pg = sentKey(given), pa = sentKey(it.ans); right = pg === pa || movedTime(pg.split(' '), pa.split(' ')) || movedPlease(pg.split(' '), pa.split(' ')); }
+    P.given = given;
     var line = $('#line'); if (line) line.setAttribute('data-mark', right ? 'right' : 'wrong');
     P.tileDiff = null;
     if (!right && it.trans) {
@@ -1296,7 +1416,12 @@
     if (SP.choices) return SP.choices;
     var target = d.lines[SP.step][1];
     var said = d.lines.slice(0, SP.step).map(function (ln) { return ln[1]; });
-    var others = C[SP.si].dialogs.reduce(function (a, x) { return a.concat(x.lines.filter(function (ln) { return roleMine(ln) && said.indexOf(ln[1]) === -1; }).map(function (ln) { return ln[1]; })); }, []);
+    var tTh = d.lines[SP.step][2], tKey = sentKey(target);
+    /* a wrong line must not say the same thing: no line whose Thai matches, none that shares most of its words */
+    var others = C[SP.si].dialogs.reduce(function (a, x) { return a.concat(x.lines.filter(function (ln) {
+      return roleMine(ln) && said.indexOf(ln[1]) === -1 && ln[1] !== target && sentKey(ln[1]) !== tKey && ln[2] !== tTh &&
+        !clash([target, tTh], [ln[1], ln[2]]) && compare(target, [ln[1]]).score < 0.5 && compare(ln[1], [target]).score < 0.5;
+    }).map(function (ln) { return ln[1]; })); }, []);
     SP.choices = shuffle([target].concat(distract(target, shuffle(others), 2)));
     return SP.choices;
   }
@@ -2373,6 +2498,14 @@
       case 'wtab': WV.tab = el.getAttribute('data-tab'); viewWords(); break;
       case 'vlvl': WV.lvl = el.getAttribute('data-lvl'); viewWords(); break;
       case 'quit': askQuit(); break;
+      case 'selfok': (function () {
+        if (!P || P.phase !== 'feedback' || P.lastRight) return;
+        var it = P.queue[0];
+        P.lastRight = true; if (it.first) P.right++;
+        P.missed = P.missed.filter(function (x) { return x !== it; });
+        if (it.en) { if (P.ssBefore) S.ss[it.en] = JSON.parse(P.ssBefore); else delete S.ss[it.en]; }
+        save(); say(it.en); updateBar();
+      })(); break;
       case 'tpart': tStart('part', el.getAttribute('data-p'), +el.getAttribute('data-n')); break;
       case 'tmock': tStart('mock', el.getAttribute('data-k')); break;
       case 'tmiss': tStart('miss'); break;

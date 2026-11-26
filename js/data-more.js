@@ -11,8 +11,8 @@ fix: {
   ],
   s0l2: [
     ["I'm fine, thank.", "I'm fine, thank you.", "ต้องพูด thank you หรือ thanks ไม่ใช้ thank เดี่ยว ๆ"],
-    ["Good night! How are you?", "Good evening! How are you?", "Good night ใช้ตอนลาเท่านั้น ทักทายตอนค่ำใช้ Good evening"],
-    ["Nice to meet you again.", "Nice to see you again.", "เจอกันครั้งที่สองขึ้นไปใช้ see ไม่ใช้ meet"]
+    ["Good night! How are you?", "Good evening! How are you?", "Good night ใช้ตอนลาเท่านั้น ทักทายตอนค่ำใช้ Good evening", "ทักทายตอนเพิ่งเจอกันช่วงค่ำ ประโยคไหนถูก"],
+    ["Nice to meet you again.", "Nice to see you again.", "เจอกันครั้งที่สองขึ้นไปใช้ see ไม่ใช้ meet", "เจอคนที่เคยรู้จักกันแล้ว ประโยคไหนเป็นธรรมชาติกว่า"]
   ],
   s0l3: [
     ["I am twenty year old.", "I am twenty years old.", "มากกว่าหนึ่งปีต้องเป็น years"],
@@ -106,16 +106,16 @@ fix: {
   ],
   s3l3: [
     ["I work at nurse.", "I work as a nurse.", "บอกอาชีพใช้ work as a"],
-    ["What is your work?", "What do you do?", "ถามอาชีพแบบที่เจ้าของภาษาพูดจริงคือ What do you do?"],
+    ["What is your work?", "What do you do?", "ถามอาชีพแบบที่เจ้าของภาษาพูดจริงคือ What do you do?", "ถามอาชีพแบบที่เจ้าของภาษาพูดกันจริง ประโยคไหนเป็นธรรมชาติกว่า"],
     ["I'm responsible to customer service.", "I'm responsible for customer service.", "responsible for"]
   ],
   s3l4: [
-    ["I think it's not a good idea.", "I don't think it's a good idea.", "ภาษาอังกฤษนิยมวางปฏิเสธที่ think"],
+    ["I think it's not a good idea.", "I don't think it's a good idea.", "ภาษาอังกฤษนิยมวางปฏิเสธที่ think", "ไม่เห็นด้วยแบบสุภาพและเป็นธรรมชาติ ประโยคไหนเหมาะกว่า"],
     ["I'm agree with you.", "I agree with you.", "agree เป็นกริยาอยู่แล้ว ไม่ต้องมี am"],
     ["In my opinion, I think it's useful.", "In my opinion, it's useful.", "In my opinion กับ I think ความหมายซ้ำกัน ใช้อย่างเดียวพอ"]
   ],
   s3l5: [
-    ["Hello, I am Nok.", "Hello, this is Nok.", "แนะนำตัวทางโทรศัพท์ใช้ This is"],
+    ["Hello, I am Nok.", "Hello, this is Nok.", "แนะนำตัวทางโทรศัพท์ใช้ This is", "ตอนโทรศัพท์ บอกว่าตัวเองเป็นใคร ประโยคไหนถูก"],
     ["Are you available in Thursday?", "Are you available on Thursday?", "วันใช้ on"],
     ["Can I leave message?", "Can I leave a message?", "message นับได้ ต้องมี a"]
   ],
@@ -161,7 +161,7 @@ fix: {
   ],
   s5l2: [
     ["Would you mind to close the window?", "Would you mind closing the window?", "mind + กริยา -ing"],
-    ["I was wondering if you can help me.", "I was wondering if you could help me.", "ใช้ could ให้เข้ากับ was และสุภาพกว่า"],
+    ["I was wondering can you help me.", "I was wondering if you could help me.", "I was wondering if ... ต้องมี if และเรียงแบบประโยคบอกเล่า ใช้ could จะสุภาพที่สุด"],
     ["I'm afraid I can't to make it.", "I'm afraid I can't make it.", "หลัง can't ไม่มี to"]
   ],
   s5l3: [
@@ -186,7 +186,7 @@ fix: {
   ],
   s6l1: [
     ["I gonna go.", "I'm gonna go.", "gonna แทน going to เท่านั้น ยังต้องมี am"],
-    ["Dear Sir, I wanna apply for the job.", "Dear Sir, I would like to apply for the job.", "ภาษาเขียนทางการห้ามใช้ wanna"],
+    ["Dear Sir, I wanna apply for the job.", "Dear Sir, I would like to apply for the job.", "ภาษาเขียนทางการห้ามใช้ wanna", "เขียนจดหมายสมัครงาน ประโยคไหนเหมาะกว่า"],
     ["I gotta to go.", "I gotta go.", "gotta มี to อยู่ในตัวแล้ว"]
   ],
   s6l2: [
@@ -277,7 +277,7 @@ lessons: {
     ],
     words: [["hot","ร้อน"],["cold","หนาว / เย็น"],["warm","อุ่น"],["sunny","แดดจ้า"],["rainy","มีฝน / ฝนตกบ่อย"],["cloudy","มีเมฆมาก"],["windy","ลมแรง"],["humid","ชื้น"],["season","ฤดู"],["umbrella","ร่ม"]],
     sents: [
-      ["It's really hot today.", "วันนี้ร้อนมาก"],
+      ["It's really hot today.", "วันนี้ร้อนจริง ๆ"],
       ["It's going to rain this afternoon.", "บ่ายนี้ฝนจะตก"],
       ["Thailand has three seasons.", "ประเทศไทยมีสามฤดู"],
       ["Don't forget your umbrella.", "อย่าลืมร่มนะ"],
@@ -303,7 +303,7 @@ lessons: {
       ["Could you help me, please?", "ช่วยฉันหน่อยได้ไหม"],
       ["Can I borrow your pen?", "ขอยืมปากกาหน่อยได้ไหม"],
       ["Could you repeat that, please?", "ช่วยพูดอีกทีได้ไหม"],
-      ["Of course, no problem.", "ได้เลย ไม่มีปัญหา"],
+      ["Of course, no problem.", "แน่นอน ไม่มีปัญหา"],
       ["Sorry, I can't right now.", "ขอโทษ ตอนนี้ไม่ได้จริง ๆ"]
     ],
     fix: [
@@ -334,7 +334,7 @@ lessons: {
     fix: [
       ["I was watch TV when you called.", "I was watching TV when you called.", "was + กริยา -ing"],
       ["They was playing football.", "They were playing football.", "they ใช้ were"],
-      ["While I was cooking, the phone was ringing.", "While I was cooking, the phone rang.", "เหตุการณ์สั้นที่แทรกเข้ามาใช้ past simple"]
+      ["While I was cooking, the phone ring.", "While I was cooking, the phone rang.", "เหตุการณ์สั้นที่แทรกเข้ามาในอดีตใช้ past simple: rang"]
     ]
   },
   {
@@ -381,7 +381,7 @@ lessons: {
     ],
     fix: [
       ["She have to work tomorrow.", "She has to work tomorrow.", "she ใช้ has to"],
-      ["You mustn't come if you're busy.", "You don't have to come if you're busy.", "mustn't แปลว่าห้าม ถ้าหมายถึงไม่จำเป็นต้องใช้ don't have to"],
+      ["You don't must come if you're busy.", "You don't have to come if you're busy.", "ไม่จำเป็นต้องทำ ใช้ don't have to ไม่มีรูป don't must"],
       ["You should to see a doctor.", "You should see a doctor.", "หลัง should ไม่มี to"]
     ]
   },
@@ -403,8 +403,8 @@ lessons: {
       ["Nice chatting with you. Take care!", "ดีใจที่ได้คุย ดูแลตัวเองนะ"]
     ],
     fix: [
-      ["How much is your salary?", "How's work going?", "เงินเดือนเป็นเรื่องส่วนตัว ถามเรื่องงานแบบกว้าง ๆ แทน"],
-      ["You look fat. Did you gain weight?", "You look well! How have you been?", "ไม่วิจารณ์รูปร่าง ชมแบบกว้าง ๆ แทน"],
+      ["How much is your salary?", "How's work going?", "เงินเดือนเป็นเรื่องส่วนตัว ถามเรื่องงานแบบกว้าง ๆ แทน", "คุยเล่นกับคนรู้จัก ถามเรื่องงานแบบไหนสุภาพ"],
+      ["You look fat. Did you gain weight?", "You look well! How have you been?", "ไม่วิจารณ์รูปร่าง ชมแบบกว้าง ๆ แทน", "ทักเพื่อนที่ไม่ได้เจอนาน ประโยคไหนสุภาพ"],
       ["I'm fine. And you are?", "I'm fine. What about you?", "ถามกลับใช้ What about you? หรือ And you?"]
     ]
   }
@@ -453,7 +453,7 @@ lessons: {
     fix: [
       ["I want to complain you.", "I'd like to make a complaint.", "complain ไม่ตามด้วยคนโดยตรง"],
       ["My phone is not work.", "My phone isn't working.", "ใช้ไม่ได้ใช้ isn't working"],
-      ["Give me money back now.", "Could I get a refund, please?", "ขอคืนเงินอย่างสุภาพได้ผลกว่า"]
+      ["Give me money back now.", "Could I get a refund, please?", "ขอคืนเงินอย่างสุภาพได้ผลกว่า", "ขอเงินคืนจากร้านอย่างสุภาพ ประโยคไหนเหมาะกว่า"]
     ]
   }
   ],
@@ -519,7 +519,7 @@ lessons: {
     sents: [
       ["I wish I had more free time.", "ฉันอยากมีเวลาว่างมากกว่านี้"],
       ["If only I had known earlier!", "ถ้าเพียงแต่ฉันรู้เร็วกว่านี้"],
-      ["I'd rather stay in tonight.", "คืนนี้ฉันขออยู่บ้านดีกว่า"],
+      ["I'd rather stay in tonight.", "คืนนี้ฉันขอไม่ออกไปไหนดีกว่า"],
       ["It's about time we went home.", "ถึงเวลากลับบ้านแล้ว"],
       ["If I had studied medicine, I would be a doctor now.", "ถ้าตอนนั้นฉันเรียนแพทย์ ตอนนี้ฉันคงเป็นหมอแล้ว"]
     ],
