@@ -573,6 +573,10 @@
   }
 
   /* lesson intro: notes, words, sentences */
+  /* a suffix such as -es must not leave its hyphen at a line end, and "am / is / are" breaks only after a slash */
+  function keepTogether(html) {
+    return String(html).replace(/(^|[\s(>])-(?=(?:s|es|ed|ing|ly|er|est|ies|ied|ful|less|ness|ment|tion)\b)/g, '$1\u2011').replace(/([A-Za-z'’]+) \/ (?=[A-Za-z])/g, '$1\u00a0/ ');
+  }
   function viewLesson(l) {
     var open = lessonOpen(l), done = S.done[l.id];
     var items = buildLesson(l).length;
@@ -602,7 +606,7 @@
           '<div class="actions">' + start + (TTS ? '<button class="btn" type="button" data-act="sayall" data-id="' + l.id + '">ฟังทุกประโยค</button>' : '') + '</div>' + lockNote +
           (TTS ? '' : '<p class="notice">เบราว์เซอร์นี้อ่านออกเสียงไม่ได้ แบบฝึกฟังจะถูกข้ามไป ลองเปิดด้วย Chrome, Edge หรือ Safari</p>') +
         '</div>' +
-        '<aside class="notes sheet" aria-labelledby="notes-h"><h2 id="notes-h">หลักที่ต้องรู้</h2><ol>' + l.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ol></aside>' +
+        '<aside class="notes sheet" aria-labelledby="notes-h"><h2 id="notes-h">หลักที่ต้องรู้</h2><ol>' + l.notes.map(function (n) { return '<li>' + keepTogether(n) + '</li>'; }).join('') + '</ol></aside>' +
         abc +
         '<section class="block" aria-labelledby="w-h"><h2 id="w-h">คำศัพท์ ' + l.words.length + ' คำ</h2><ul class="words">' +
           l.words.map(function (w) { return '<li><button class="word" type="button" data-act="say" data-text="' + esc(w[0]) + '"' + (TTS ? '' : ' disabled') + ' aria-label="' + esc(w[0] + ' แปลว่า ' + w[1] + ' แตะเพื่อฟัง') + '"><span><span class="word__en" lang="en">' + esc(w[0]) + '</span><span class="word__th">' + esc(w[1]) + '</span></span>' + I.sound + '</button></li>'; }).join('') +
@@ -1697,7 +1701,7 @@
     var list = VPACKS.filter(function (pk) { return pk.lvl === WV.lvl; });
     box.innerHTML = '<ul class="packs">' + list.map(function (pk) {
       var got = packLearned(pk), best = S.done['v:' + pk.id];
-      return '<li><a class="pack" href="#/pack/' + pk.id + '"' + (best ? ' data-done' : '') + '><span class="pack__lvl">' + pk.lvl + '</span><b>' + esc(pk.title) + '</b><span class="pack__en" lang="en">' + esc(pk.en) + '</span>' +
+      return '<li><a class="pack" href="#/pack/' + pk.id + '"' + (best ? ' data-done' : '') + '><b>' + esc(pk.title) + '</b><span class="pack__en" lang="en">' + esc(pk.en) + '</span>' +
         '<span class="pack__meter" aria-hidden="true"><i style="--p:' + (got / pk.words.length) + '"></i></span><span class="pack__stat">' + (best ? 'ผ่านแล้ว ' + best.best + '%' : got ? 'เรียนแล้ว ' + got + ' จาก ' + pk.words.length + ' คำ' : pk.words.length + ' คำ') + '</span></a></li>';
     }).join('') + '</ul>';
   }
@@ -1856,7 +1860,7 @@
         if (!list.length) return '';
         return '<h2 class="read__lvl">ระดับ ' + lv + '</h2><ul class="packs">' + list.map(function (r) {
           var d = S.done['r:' + r.id];
-          return '<li><a class="pack" href="#/read/' + r.id + '"' + (d ? ' data-done' : '') + '><span class="pack__lvl">' + r.lvl + '</span><b>' + esc(r.title) + '</b><span class="pack__en" lang="en">' + esc(r.en) + '</span><span class="pack__stat">' + (d ? 'ตอบถูก ' + d.best + '%' : r.qs.length + ' คำถาม') + '</span></a></li>';
+          return '<li><a class="pack" href="#/read/' + r.id + '"' + (d ? ' data-done' : '') + '><b>' + esc(r.title) + '</b><span class="pack__en" lang="en">' + esc(r.en) + '</span><span class="pack__stat">' + (d ? 'ตอบถูก ' + d.best + '%' : r.qs.length + ' คำถาม') + '</span></a></li>';
         }).join('') + '</ul>';
       }).join('') + '</div>', { focus: false });
   }
@@ -2345,7 +2349,7 @@
     render('<div class="view container toeic">' +
       '<div class="view__head"><p class="crumb"><a href="#/toeic">ติว TOEIC</a>&ensp;/&ensp;Reading</p><h1>ไวยากรณ์ที่ออกบ่อย</h1><p>จุดที่ Part 5 และ Part 6 ถามซ้ำแทบทุกครั้ง จำตารางเหล่านี้ได้ จะตอบได้เร็วโดยไม่ต้องแปลทั้งประโยค</p></div>' +
       (TQ.grammar || []).map(function (g) {
-        return '<section class="tq-gram"><h2 class="read__lvl">' + esc(g.h) + '</h2><div class="table-wrap"><table class="tq-table"><tbody>' + g.rows.map(function (r) { return '<tr><th scope="row" lang="en">' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>'; }).join('') + '</tbody></table></div></section>';
+        return '<section class="tq-gram"><h2 class="read__lvl">' + esc(g.h) + '</h2><div class="table-wrap"><table class="tq-table"><tbody>' + g.rows.map(function (r) { return '<tr><th scope="row" lang="en">' + keepTogether(esc(r[0])) + '</th><td>' + keepTogether(esc(r[1])) + '</td></tr>'; }).join('') + '</tbody></table></div></section>';
       }).join('') +
       '<div class="actions"><button class="btn btn--primary btn--lg" type="button" data-act="tpart" data-p="p5" data-n="10">ฝึก Part 5 สิบข้อ</button><a class="btn btn--line" href="#/toeic/p6">ไป Part 6</a></div>' +
       '</div>', { focus: false });
